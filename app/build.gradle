@@ -5,12 +5,12 @@ plugins {
 
 android {
     namespace 'com.example.myv2rayvpn'
-    compileSdk 33
+    compileSdk 34
 
     defaultConfig {
         applicationId "com.example.myv2rayvpn"
         minSdk 24
-        targetSdk 33
+        targetSdk 34
         versionCode 1
         versionName "1.0"
     }
@@ -31,9 +31,12 @@ android {
 }
 
 dependencies {
-    implementation 'androidx.core:core-ktx:1.9.0'
+    implementation 'androidx.core:core-ktx:1.12.0'
     implementation 'androidx.appcompat:appcompat:1.6.1'
-    implementation 'com.google.android.material:material:1.9.0'
+    implementation 'com.google.android.material:material:1.11.0'
+    
     // مكتبة V2Ray
+    implementation 'com.github.2dust:AndroidLibV2rayLite:1.0.0'
+}    // مكتبة V2Ray
     implementation 'com.github.2dust:AndroidLibV2rayLite:1.0.0'
 }
