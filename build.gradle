@@ -1,0 +1,6 @@
+dependencies {
+    // مكتبة تشغيل كودات V2Ray الجاهزة
+    implementation 'com.github.2dust:AndroidLibV2rayLite:1.0.0' // تأكد من آخر إصدار
+    implementation 'androidx.core:core-ktx:1.7.0'
+    implementation 'com.google.code.gson:gson:2.8.9' // لتحليل كودات الـ JSON/Config
+}
