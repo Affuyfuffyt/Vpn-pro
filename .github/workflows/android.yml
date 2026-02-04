@@ -22,11 +22,11 @@ jobs:
         java-version: '17'
         distribution: 'temurin'
 
-    # 3. (الخطوة الجديدة والإصلاح) تثبيت Gradle 8.0 بدلاً من 9.3
+    # 3. تحديث Gradle إلى 8.2 (هنا التعديل)
     - name: Setup Gradle
       uses: gradle/actions/setup-gradle@v3
       with:
-        gradle-version: '8.0'
+        gradle-version: '8.2'
 
     # 4. بناء التطبيق
     - name: Build with Gradle
