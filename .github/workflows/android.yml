@@ -11,27 +11,28 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    # 1. تحميل الكود الخاص بك
+    # 1. تحميل الكود
     - name: Checkout code
       uses: actions/checkout@v3
 
-    # 2. تجهيز بيئة الجافا (تم التحديث إلى 17)
+    # 2. تجهيز الجافا 17
     - name: Set up JDK 17
       uses: actions/setup-java@v3
       with:
         java-version: '17'
         distribution: 'temurin'
-        cache: gradle
 
-    # 3. محاولة إعطاء صلاحية التنفيذ (احتياطي)
-    - name: Make gradlew executable
-      run: chmod +x gradlew || true
+    # 3. (الخطوة الجديدة والإصلاح) تثبيت Gradle 8.0 بدلاً من 9.3
+    - name: Setup Gradle
+      uses: gradle/actions/setup-gradle@v3
+      with:
+        gradle-version: '8.0'
 
-    # 4. بناء ملف الـ APK باستخدام Gradle المثبت في السيرفر
+    # 4. بناء التطبيق
     - name: Build with Gradle
       run: gradle assembleDebug --no-daemon
 
-    # 5. رفع ملف الـ APK الناتج لكي تحمله أنت
+    # 5. رفع ملف الـ APK
     - name: Upload APK
       uses: actions/upload-artifact@v4
       with:
