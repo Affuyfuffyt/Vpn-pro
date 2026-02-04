@@ -35,6 +35,6 @@ dependencies {
     implementation 'androidx.appcompat:appcompat:1.6.1'
     implementation 'com.google.android.material:material:1.11.0'
     
-    // العودة للمكتبة الأصلية مع الفرع الصحيح master
-    implementation 'com.github.2dust:AndroidLibV2rayLite:master-SNAPSHOT'
+    // استخدام إصدار قديم وموثوق (0.0.5)
+    implementation 'com.github.2dust:AndroidLibV2rayLite:0.0.5'
 }
