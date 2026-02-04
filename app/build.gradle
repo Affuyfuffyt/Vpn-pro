@@ -35,6 +35,6 @@ dependencies {
     implementation 'androidx.appcompat:appcompat:1.6.1'
     implementation 'com.google.android.material:material:1.11.0'
     
-    // استخدام إصدار قديم وموثوق (0.0.5)
-    implementation 'com.github.2dust:AndroidLibV2rayLite:0.0.5'
+    // الحل السحري: استخدام Commit ID مباشر لمكتبة Xray لضمان وجودها
+    implementation 'com.github.2dust:AndroidLibXrayLite:a84323c'
 }
