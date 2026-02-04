@@ -35,8 +35,6 @@ dependencies {
     implementation 'androidx.appcompat:appcompat:1.6.1'
     implementation 'com.google.android.material:material:1.11.0'
     
-    // مكتبة V2Ray
-    implementation 'com.github.2dust:AndroidLibV2rayLite:1.0.0'
-}    // مكتبة V2Ray
+    // هذا هو السطر الذي كان يسبب المشكلة، الآن هو مكتوب بشكل صحيح
     implementation 'com.github.2dust:AndroidLibV2rayLite:1.0.0'
 }
