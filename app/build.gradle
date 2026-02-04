@@ -35,6 +35,8 @@ dependencies {
     implementation 'androidx.appcompat:appcompat:1.6.1'
     implementation 'com.google.android.material:material:1.11.0'
     
-    // استخدام إصدار 0.7.0 (بدون v) لمكتبة Xray
-    implementation 'com.github.2dust:AndroidLibXrayLite:0.7.0'
+    // المحاولة الأخيرة: Xray مع وضع PREFER_SETTINGS
+    implementation ('com.github.2dust:AndroidLibXrayLite:main-SNAPSHOT') {
+        changing = true
+    }
 }
