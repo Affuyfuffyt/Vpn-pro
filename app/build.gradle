@@ -35,6 +35,6 @@ dependencies {
     implementation 'androidx.appcompat:appcompat:1.6.1'
     implementation 'com.google.android.material:material:1.11.0'
     
-    // التعديل هنا: استخدام master-SNAPSHOT لضمان التحميل
-    implementation 'com.github.2dust:AndroidLibV2rayLite:main-SNAPSHOT'
+    // التعديل هنا: إضافة حرف v قبل الرقم
+    implementation 'com.github.2dust:AndroidLibV2rayLite:v1.0.0'
 }
