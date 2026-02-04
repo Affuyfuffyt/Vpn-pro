@@ -35,6 +35,6 @@ dependencies {
     implementation 'androidx.appcompat:appcompat:1.6.1'
     implementation 'com.google.android.material:material:1.11.0'
     
-    // الحل النهائي: استخدام مكتبة Xray الحديثة بدلاً من V2Ray القديمة
-    implementation 'com.github.2dust:AndroidLibXrayLite:main-SNAPSHOT'
+    // العودة للمكتبة الأصلية مع الفرع الصحيح master
+    implementation 'com.github.2dust:AndroidLibV2rayLite:master-SNAPSHOT'
 }
