@@ -3,6 +3,7 @@ package com.example.myv2rayvpn
 import android.content.Intent
 import android.net.VpnService
 import android.os.ParcelFileDescriptor
+import android.content.pm.PackageManager
 import libv2ray.Libv2ray
 import libv2ray.CoreCallbackHandler
 import libv2ray.CoreController
@@ -35,13 +36,24 @@ class MyVpnService : VpnService() {
 
     private fun startV2Ray(config: String) {
         try {
-            sendLog("Building VPN Tunnel...")
+            sendLog("Configuring Network...")
             
             val builder = Builder()
             builder.setSession("V2Ray Pro")
             builder.addAddress("10.0.0.2", 24)
             builder.addRoute("0.0.0.0", 0)
             builder.setMtu(1500)
+            
+            // --- الإضافة 1: خوادم DNS (ضروري للإنترنت) ---
+            builder.addDnsServer("8.8.8.8")
+            builder.addDnsServer("1.1.1.1")
+
+            // --- الإضافة 2: منع التطبيق من خنق نفسه (Bypass Self) ---
+            try {
+                builder.addDisallowedApplication(packageName)
+            } catch (e: Exception) {
+                sendLog("Warning: Could not bypass self.")
+            }
             
             vpnInterface = builder.establish()
 
@@ -55,7 +67,6 @@ class MyVpnService : VpnService() {
 
             val callback = object : CoreCallbackHandler {
                 override fun onEmitStatus(p0: Long, p1: String?): Long { 
-                    // إرسال حالة الاتصال للشاشة
                     sendLog("Status: $p1")
                     return 0 
                 }
@@ -69,11 +80,8 @@ class MyVpnService : VpnService() {
                 }
             }
 
-            // محاولة تشغيل المكتبة
             sendLog("Starting V2Ray Core...")
             coreController = Libv2ray.newCoreController(callback)
-            // ملاحظة: هنا نمرر الكود. إذا كان الكود vless:// مباشر قد تحتاج المكتبة لتحويله
-            // لكن سنحاول تمريره كما هو الآن لنرى السجلات
             coreController?.startLoop(config, fd)
 
         } catch (e: Exception) {
@@ -94,7 +102,6 @@ class MyVpnService : VpnService() {
         }
     }
     
-    // دالة لإرسال النصوص للشاشة الرئيسية
     private fun sendLog(msg: String) {
         val intent = Intent("VPN_LOG_UPDATE")
         intent.putExtra("log_message", msg)
