@@ -35,6 +35,6 @@ dependencies {
     implementation 'androidx.appcompat:appcompat:1.6.1'
     implementation 'com.google.android.material:material:1.11.0'
     
-    // الإصدار الحقيقي والموجود حالياً (وليس 1.0.0)
-    implementation 'com.github.2dust:AndroidLibXrayLite:v26.1.31'
+    // التغيير الجذري: استخدام الملف المحلي الذي حمله الروبوت
+    implementation files('libs/libv2ray.aar')
 }
