@@ -3,7 +3,6 @@ package com.example.myv2rayvpn
 import android.content.Intent
 import android.net.VpnService
 import android.os.ParcelFileDescriptor
-import android.content.pm.PackageManager
 import libv2ray.Libv2ray
 import libv2ray.CoreCallbackHandler
 import libv2ray.CoreController
@@ -39,16 +38,27 @@ class MyVpnService : VpnService() {
             sendLog("Configuring Network...")
             
             val builder = Builder()
-            builder.setSession("V2Ray Pro")
+            builder.setSession("V2Ray VPN")
+            // إضافة مسار IPv4
             builder.addAddress("10.0.0.2", 24)
             builder.addRoute("0.0.0.0", 0)
-            builder.setMtu(1500)
             
-            // --- الإضافة 1: خوادم DNS (ضروري للإنترنت) ---
+            // إضافة مسار IPv6 (مهم لبعض الشبكات الحديثة)
+            try {
+                builder.addAddress("fd00:1:fd00:1:fd00:1:fd00:1", 128)
+                builder.addRoute("::", 0)
+            } catch (e: Exception) {
+                // تجاهل إذا لم يدعم الجهاز IPv6
+            }
+
+            // تعديل MTU ليكون آمناً لشبكات الجوال
+            builder.setMtu(1280)
+            
+            // DNS جوجل وكلاود فلير
             builder.addDnsServer("8.8.8.8")
             builder.addDnsServer("1.1.1.1")
 
-            // --- الإضافة 2: منع التطبيق من خنق نفسه (Bypass Self) ---
+            // منع التكرار
             try {
                 builder.addDisallowedApplication(packageName)
             } catch (e: Exception) {
