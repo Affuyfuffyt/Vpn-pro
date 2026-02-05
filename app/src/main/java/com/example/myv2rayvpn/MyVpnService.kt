@@ -10,7 +10,7 @@ import libv2ray.CoreController
 class MyVpnService : VpnService() {
 
     private var vpnInterface: ParcelFileDescriptor? = null
-    // متغير ثابت للتحكم في المكتبة حتى لا نفقد الاتصال به
+    
     companion object {
         var coreController: CoreController? = null
     }
@@ -23,12 +23,9 @@ class MyVpnService : VpnService() {
             return START_NOT_STICKY
         }
 
-        // إذا كان الأمر تشغيل
         val configContent = intent?.getStringExtra("V2RAY_CONFIG")
         if (configContent != null) {
-            // نوقف أي اتصال سابق أولاً
             stopV2Ray()
-            
             Thread {
                 startV2Ray(configContent)
             }.start()
@@ -38,9 +35,10 @@ class MyVpnService : VpnService() {
 
     private fun startV2Ray(config: String) {
         try {
-            // إعدادات الشبكة الوهمية
+            sendLog("Building VPN Tunnel...")
+            
             val builder = Builder()
-            builder.setSession("V2Ray VPN")
+            builder.setSession("V2Ray Pro")
             builder.addAddress("10.0.0.2", 24)
             builder.addRoute("0.0.0.0", 0)
             builder.setMtu(1500)
@@ -48,42 +46,60 @@ class MyVpnService : VpnService() {
             vpnInterface = builder.establish()
 
             if (vpnInterface == null) {
+                sendLog("Failed to establish VPN interface!")
                 return
             }
+            sendLog("VPN Interface Established.")
 
             val fd = vpnInterface!!.fd
 
-            // تجهيز المستمع (Callback)
             val callback = object : CoreCallbackHandler {
-                override fun onEmitStatus(p0: Long, p1: String?): Long { return 0 }
-                override fun shutdown(): Long { return 0 }
-                override fun startup(): Long { return 0 }
+                override fun onEmitStatus(p0: Long, p1: String?): Long { 
+                    // إرسال حالة الاتصال للشاشة
+                    sendLog("Status: $p1")
+                    return 0 
+                }
+                override fun shutdown(): Long { 
+                    sendLog("Core Shutdown.")
+                    return 0 
+                }
+                override fun startup(): Long { 
+                    sendLog("Core Started successfully!")
+                    return 0 
+                }
             }
 
-            // تشغيل المكتبة
+            // محاولة تشغيل المكتبة
+            sendLog("Starting V2Ray Core...")
             coreController = Libv2ray.newCoreController(callback)
+            // ملاحظة: هنا نمرر الكود. إذا كان الكود vless:// مباشر قد تحتاج المكتبة لتحويله
+            // لكن سنحاول تمريره كما هو الآن لنرى السجلات
             coreController?.startLoop(config, fd)
 
         } catch (e: Exception) {
             e.printStackTrace()
+            sendLog("Error: ${e.message}")
             stopV2Ray()
         }
     }
 
     private fun stopV2Ray() {
         try {
-            if (coreController != null) {
-                coreController?.stopLoop()
-                coreController = null
-            }
-            if (vpnInterface != null) {
-                vpnInterface?.close()
-                vpnInterface = null
-            }
-            stopSelf() // قتل الخدمة تماماً
+            coreController?.stopLoop()
+            vpnInterface?.close()
+            stopSelf()
+            sendLog("VPN Stopped.")
         } catch (e: Exception) {
             e.printStackTrace()
         }
+    }
+    
+    // دالة لإرسال النصوص للشاشة الرئيسية
+    private fun sendLog(msg: String) {
+        val intent = Intent("VPN_LOG_UPDATE")
+        intent.putExtra("log_message", msg)
+        intent.setPackage(packageName)
+        sendBroadcast(intent)
     }
 
     override fun onDestroy() {
