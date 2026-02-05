@@ -34,6 +34,7 @@ class MainActivity : Activity() {
         mainLayout.setPadding(30, 30, 30, 30)
         mainLayout.setBackgroundColor(Color.WHITE)
 
+        // زر اللصق
         val btnPaste = Button(this)
         btnPaste.text = "📋 لصق الكود (PASTE)"
         btnPaste.setBackgroundColor(Color.parseColor("#EEEEEE"))
@@ -83,7 +84,7 @@ class MainActivity : Activity() {
         tvLogs = TextView(this)
         tvLogs.textSize = 12f
         tvLogs.setTextColor(Color.DKGRAY)
-        tvLogs.text = "Waiting for command..."
+        tvLogs.text = "Ready..."
         scroller.addView(tvLogs)
         val params = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 400)
         scroller.layoutParams = params
@@ -120,7 +121,7 @@ class MainActivity : Activity() {
         }
     }
 
-    // --- تعديل هام: تفعيل Sniffing ---
+    // --- التعديل الجذري: إضافة مخرج Freedom وقواعد التوجيه ---
     private fun createJsonConfig(): String {
         val address = etAddress.text.toString()
         val port = etPort.text.toString().toIntOrNull() ?: 443
@@ -128,6 +129,7 @@ class MainActivity : Activity() {
         val sni = etSni.text.toString()
         val path = etPath.text.toString()
 
+        // هذا الـ JSON هو السر: يحتوي على مخرجين (Proxy و Direct)
         return """
         {
             "log": { "loglevel": "warning" },
@@ -144,6 +146,7 @@ class MainActivity : Activity() {
             ],
             "outbounds": [
                 {
+                    "tag": "proxy",
                     "protocol": "vless",
                     "settings": {
                         "vnext": [
@@ -164,8 +167,23 @@ class MainActivity : Activity() {
                             "headers": { "Host": "$sni" }
                         }
                     }
+                },
+                {
+                    "tag": "direct",
+                    "protocol": "freedom",
+                    "settings": {}
                 }
-            ]
+            ],
+            "routing": {
+                "domainStrategy": "AsIs",
+                "rules": [
+                    {
+                        "type": "field",
+                        "ip": ["geoip:private"],
+                        "outboundTag": "direct"
+                    }
+                ]
+            }
         }
         """.trimIndent()
     }
