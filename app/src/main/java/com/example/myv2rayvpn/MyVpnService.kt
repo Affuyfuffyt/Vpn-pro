@@ -5,18 +5,17 @@ import android.net.VpnService
 import android.os.ParcelFileDescriptor
 import libv2ray.Libv2ray
 import libv2ray.CoreCallbackHandler
+import libv2ray.CoreController
 
 class MyVpnService : VpnService() {
 
     private var vpnInterface: ParcelFileDescriptor? = null
-    // تعريف المتحكم الجديد بالمكتبة
-    private var coreController: libv2ray.CoreController? = null
+    private var coreController: CoreController? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val configContent = intent?.getStringExtra("V2RAY_CONFIG")
 
         if (configContent != null) {
-            // تشغيل الـ VPN في خيط منفصل لتجنب تعليق التطبيق
             Thread {
                 startV2Ray(configContent)
             }.start()
@@ -26,7 +25,6 @@ class MyVpnService : VpnService() {
 
     private fun startV2Ray(config: String) {
         try {
-            // 1. إعداد نفق الـ VPN
             val builder = Builder()
             builder.setSession("MyV2RayApp")
             builder.addAddress("10.0.0.2", 24)
@@ -39,19 +37,26 @@ class MyVpnService : VpnService() {
                 return
             }
 
-            // 2. الحصول على رقم الملف (File Descriptor) لتمريره للمكتبة
+            // التصحيح 1: الحصول على الرقم كـ Int كما يطلبه النظام
             val fd = vpnInterface!!.fd
 
-            // 3. تجهيز "مستمع" (Callback) - هذا مطلوب في النسخة الجديدة
+            // تعريف المستمع (Callback) مع الدوال الناقصة
             val callback = object : CoreCallbackHandler {
-                 override fun onEmitStatus(p0: Long, p1: String?) {
-                    // يمكن إضافة كود هنا لمراقبة الحالة، سنتركه فارغاً حالياً
+                // التصحيح 2: إرجاع قيمة 0 (Long)
+                 override fun onEmitStatus(p0: Long, p1: String?): Long {
+                    return 0 
+                }
+                
+                // التصحيح 3: إضافة دالة shutdown الناقصة وإرجاع 0
+                override fun shutdown(): Long {
+                    return 0 
                 }
             }
 
-            // 4. تشغيل القلب (Core) بالطريقة الجديدة
             coreController = Libv2ray.newCoreController(callback)
-            coreController?.startLoop(config, fd.toLong()) // تمرير الكود ورقم النفق
+            
+            // التصحيح 4: تمرير fd مباشرة (لأنه Int) وحذف .toLong() التي سببت المشكلة
+            coreController?.startLoop(config, fd) 
 
         } catch (e: Exception) {
             e.printStackTrace()
@@ -61,7 +66,6 @@ class MyVpnService : VpnService() {
 
     override fun onDestroy() {
         super.onDestroy()
-        // إيقاف الاتصال بالطريقة الجديدة
         try {
             coreController?.stopLoop()
         } catch (e: Exception) {
