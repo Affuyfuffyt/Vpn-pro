@@ -15,18 +15,19 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v3
 
-    # 2. تجهيز الجافا 17
+    # 2. (خطوة جديدة) تحميل مكتبة V2Ray يدوياً لأن JitPack معطل
+    - name: Download LibV2Ray AAR manually
+      run: |
+        mkdir -p app/libs
+        curl -L -o app/libs/libv2ray.aar https://github.com/2dust/AndroidLibXrayLite/releases/download/v26.1.23/libv2ray.aar
+
+    # 3. تجهيز الجافا
     - name: Set up JDK 17
       uses: actions/setup-java@v3
       with:
         java-version: '17'
         distribution: 'temurin'
-
-    # 3. تحديث Gradle إلى 8.2 (هنا التعديل)
-    - name: Setup Gradle
-      uses: gradle/actions/setup-gradle@v3
-      with:
-        gradle-version: '8.2'
+        cache: gradle
 
     # 4. بناء التطبيق
     - name: Build with Gradle
