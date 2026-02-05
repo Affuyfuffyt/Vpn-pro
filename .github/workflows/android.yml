@@ -15,11 +15,11 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v3
 
-    # 2. تحميل المكتبة يدوياً (لحل مشكلة JitPack)
+    # 2. تحميل المكتبة من رابط صحيح وموجود (v26.1.23)
     - name: Download LibV2Ray AAR manually
       run: |
         mkdir -p app/libs
-        curl -L -o app/libs/libv2ray.aar https://github.com/2dust/AndroidLibXrayLite/releases/download/0.7.0/libv2ray.aar
+        curl -L -o app/libs/libv2ray.aar https://github.com/2dust/AndroidLibXrayLite/releases/download/v26.1.23/libv2ray.aar
 
     # 3. تجهيز الجافا
     - name: Set up JDK 17
@@ -29,7 +29,7 @@ jobs:
         distribution: 'temurin'
         cache: gradle
 
-    # 4. (الخطوة التي نسيناها) إجبار النظام على استخدام Gradle 8.2
+    # 4. إعداد Gradle 8.2 (ضروري جداً)
     - name: Setup Gradle
       uses: gradle/actions/setup-gradle@v3
       with:
