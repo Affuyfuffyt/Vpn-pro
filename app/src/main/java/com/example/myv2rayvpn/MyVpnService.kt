@@ -37,25 +37,25 @@ class MyVpnService : VpnService() {
                 return
             }
 
-            // التصحيح 1: الحصول على الرقم كـ Int كما يطلبه النظام
             val fd = vpnInterface!!.fd
 
-            // تعريف المستمع (Callback) مع الدوال الناقصة
+            // تعريف المستمع (Callback) مع الدوال الثلاث المطلوبة
             val callback = object : CoreCallbackHandler {
-                // التصحيح 2: إرجاع قيمة 0 (Long)
-                 override fun onEmitStatus(p0: Long, p1: String?): Long {
+                override fun onEmitStatus(p0: Long, p1: String?): Long {
                     return 0 
                 }
                 
-                // التصحيح 3: إضافة دالة shutdown الناقصة وإرجاع 0
                 override fun shutdown(): Long {
                     return 0 
+                }
+
+                // الدالة الجديدة التي طلبها الخطأ الأخير
+                override fun startup(): Long {
+                    return 0
                 }
             }
 
             coreController = Libv2ray.newCoreController(callback)
-            
-            // التصحيح 4: تمرير fd مباشرة (لأنه Int) وحذف .toLong() التي سببت المشكلة
             coreController?.startLoop(config, fd) 
 
         } catch (e: Exception) {
