@@ -11,7 +11,6 @@ import android.net.Uri
 import android.net.VpnService
 import android.os.Build
 import android.os.Bundle
-import android.view.Gravity
 import android.widget.*
 import androidx.annotation.RequiresApi
 
@@ -29,6 +28,7 @@ class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        // تصميم الواجهة
         val mainLayout = LinearLayout(this)
         mainLayout.orientation = LinearLayout.VERTICAL
         mainLayout.setPadding(30, 30, 30, 30)
@@ -41,6 +41,7 @@ class MainActivity : Activity() {
         btnPaste.setOnClickListener { pasteFromClipboard() }
         mainLayout.addView(btnPaste)
 
+        // دالة لإنشاء الحقول
         fun createField(label: String, default: String = ""): EditText {
             val txt = TextView(this)
             txt.text = label
@@ -66,6 +67,7 @@ class MainActivity : Activity() {
         spacer.height = 50
         mainLayout.addView(spacer)
 
+        // زر الاتصال
         btnConnect = Button(this)
         btnConnect.text = "CONNECT"
         btnConnect.textSize = 18f
@@ -75,6 +77,7 @@ class MainActivity : Activity() {
         btnConnect.setOnClickListener { startVpn() }
         mainLayout.addView(btnConnect)
 
+        // السجلات
         val logLabel = TextView(this)
         logLabel.text = "Connection Logs:"
         logLabel.setPadding(0, 40, 0, 10)
@@ -121,7 +124,7 @@ class MainActivity : Activity() {
         }
     }
 
-    // --- التعديل الجذري: إضافة مخرج Freedom وقواعد التوجيه ---
+    // --- التعديل هنا: إزالة geoip واستخدام الأرقام المباشرة ---
     private fun createJsonConfig(): String {
         val address = etAddress.text.toString()
         val port = etPort.text.toString().toIntOrNull() ?: 443
@@ -129,7 +132,6 @@ class MainActivity : Activity() {
         val sni = etSni.text.toString()
         val path = etPath.text.toString()
 
-        // هذا الـ JSON هو السر: يحتوي على مخرجين (Proxy و Direct)
         return """
         {
             "log": { "loglevel": "warning" },
@@ -179,7 +181,12 @@ class MainActivity : Activity() {
                 "rules": [
                     {
                         "type": "field",
-                        "ip": ["geoip:private"],
+                        "ip": [
+                            "10.0.0.0/8",
+                            "172.16.0.0/12",
+                            "192.168.0.0/16",
+                            "127.0.0.0/8"
+                        ],
                         "outboundTag": "direct"
                     }
                 ]
