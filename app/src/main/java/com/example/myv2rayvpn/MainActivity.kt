@@ -25,27 +25,21 @@ class MainActivity : Activity() {
     private lateinit var tvLogs: TextView
     private lateinit var btnConnect: Button
     
-    // متغير لتحديد نوع البروتوكول (vless/vmess)
-    private var currentProtocol = "vless"
-
     @RequiresApi(Build.VERSION_CODES.O)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // --- تصميم الواجهة ---
         val mainLayout = LinearLayout(this)
         mainLayout.orientation = LinearLayout.VERTICAL
         mainLayout.setPadding(30, 30, 30, 30)
         mainLayout.setBackgroundColor(Color.WHITE)
 
-        // زر اللصق
         val btnPaste = Button(this)
         btnPaste.text = "📋 لصق الكود (PASTE)"
         btnPaste.setBackgroundColor(Color.parseColor("#EEEEEE"))
         btnPaste.setOnClickListener { pasteFromClipboard() }
         mainLayout.addView(btnPaste)
 
-        // دالة لإنشاء الحقول
         fun createField(label: String, default: String = ""): EditText {
             val txt = TextView(this)
             txt.text = label
@@ -67,12 +61,10 @@ class MainActivity : Activity() {
         etSni = createField("SNI / Server Name")
         etPath = createField("Path", "/")
 
-        // فاصل
         val spacer = TextView(this)
         spacer.height = 50
         mainLayout.addView(spacer)
 
-        // زر الاتصال
         btnConnect = Button(this)
         btnConnect.text = "CONNECT"
         btnConnect.textSize = 18f
@@ -82,7 +74,6 @@ class MainActivity : Activity() {
         btnConnect.setOnClickListener { startVpn() }
         mainLayout.addView(btnConnect)
 
-        // السجلات
         val logLabel = TextView(this)
         logLabel.text = "Connection Logs:"
         logLabel.setPadding(0, 40, 0, 10)
@@ -114,7 +105,6 @@ class MainActivity : Activity() {
     private fun parseConfig(conf: String) {
         try {
             if (conf.startsWith("vless://")) {
-                currentProtocol = "vless"
                 val uri = Uri.parse(conf)
                 etUserId.setText(uri.userInfo)
                 etAddress.setText(uri.host)
@@ -122,18 +112,15 @@ class MainActivity : Activity() {
                 etSni.setText(uri.getQueryParameter("sni") ?: "")
                 etPath.setText(uri.getQueryParameter("path") ?: "/")
                 Toast.makeText(this, "تم استخراج بيانات VLESS", Toast.LENGTH_SHORT).show()
-            } else if (conf.startsWith("vmess://")) {
-                // الـ VMESS يحتاج فك تشفير Base64 وهذا معقد قليلاً
-                // للتبسيط الآن سنركز على VLESS كما في الصورة
-                currentProtocol = "vmess"
-                Toast.makeText(this, "تنبيه: دعم VMESS قيد التطوير، يفضل استخدام VLESS حالياً", Toast.LENGTH_LONG).show()
+            } else {
+                Toast.makeText(this, "يرجى نسخ كود Vless صحيح", Toast.LENGTH_SHORT).show()
             }
         } catch (e: Exception) {
             Toast.makeText(this, "خطأ في قراءة الكود", Toast.LENGTH_SHORT).show()
         }
     }
 
-    // --- هذا هو الجزء الأهم: المترجم ---
+    // --- تعديل هام: تفعيل Sniffing ---
     private fun createJsonConfig(): String {
         val address = etAddress.text.toString()
         val port = etPort.text.toString().toIntOrNull() ?: 443
@@ -141,20 +128,18 @@ class MainActivity : Activity() {
         val sni = etSni.text.toString()
         val path = etPath.text.toString()
 
-        // هذا قالب JSON يفهمه Xray Core
-        // يقوم بإنشاء إعدادات VLESS مع WebSocket
         return """
         {
-            "log": {
-                "loglevel": "warning"
-            },
+            "log": { "loglevel": "warning" },
             "inbounds": [
                 {
                     "port": 10808,
                     "protocol": "socks",
-                    "settings": {
-                        "auth": "noauth"
-                    }
+                    "sniffing": {
+                        "enabled": true,
+                        "destOverride": ["http", "tls"]
+                    },
+                    "settings": { "auth": "noauth" }
                 }
             ],
             "outbounds": [
@@ -166,10 +151,7 @@ class MainActivity : Activity() {
                                 "address": "$address",
                                 "port": $port,
                                 "users": [
-                                    {
-                                        "id": "$uuid",
-                                        "encryption": "none"
-                                    }
+                                    { "id": "$uuid", "encryption": "none" }
                                 ]
                             }
                         ]
@@ -179,9 +161,7 @@ class MainActivity : Activity() {
                         "security": "none",
                         "wsSettings": {
                             "path": "$path",
-                            "headers": {
-                                "Host": "$sni"
-                            }
+                            "headers": { "Host": "$sni" }
                         }
                     }
                 }
@@ -201,12 +181,10 @@ class MainActivity : Activity() {
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         if (resultCode == Activity.RESULT_OK) {
-            // هنا نولد كود JSON بدلاً من إرسال الرابط الخام
             val jsonConfig = createJsonConfig()
-            
             val intent = Intent(this, MyVpnService::class.java)
             intent.action = "START_VPN"
-            intent.putExtra("V2RAY_CONFIG", jsonConfig) // نرسل الـ JSON
+            intent.putExtra("V2RAY_CONFIG", jsonConfig)
             startService(intent)
             tvLogs.text = "Connecting to ${etAddress.text}..."
         }
