@@ -19,7 +19,7 @@ class MainActivity : Activity() {
     private lateinit var etAddress: EditText
     private lateinit var etPort: EditText
     private lateinit var etUserId: EditText
-    private lateinit var etSni: EditText // سنستخدمه كـ Host للـ WS
+    private lateinit var etSni: EditText
     private lateinit var etPath: EditText
     private lateinit var tvLogs: TextView
     private lateinit var btnConnect: Button
@@ -57,7 +57,7 @@ class MainActivity : Activity() {
         etAddress = createField("Address / Host")
         etPort = createField("Port", "80")
         etUserId = createField("UUID")
-        etSni = createField("Host (Header)") // مهم جداً للـ WebSocket
+        etSni = createField("Host (Header)") 
         etPath = createField("Path", "/")
 
         val spacer = TextView(this)
@@ -107,48 +107,30 @@ class MainActivity : Activity() {
                 etUserId.setText(uri.userInfo)
                 etAddress.setText(uri.host)
                 etPort.setText(uri.port.toString())
-                // في حالة WS NoTLS، الـ SNI عادة هو نفسه الـ Host Header
                 val sniOrHost = uri.getQueryParameter("sni") ?: uri.getQueryParameter("host") ?: ""
                 etSni.setText(sniOrHost)
                 etPath.setText(uri.getQueryParameter("path") ?: "/")
-                
-                Toast.makeText(this, "تم تجهيز VLESS WS (No TLS)", Toast.LENGTH_SHORT).show()
-            } else {
-                Toast.makeText(this, "الكود غير مدعوم، يرجى نسخ VLESS", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, "تم التجهيز", Toast.LENGTH_SHORT).show()
             }
         } catch (e: Exception) {
-            Toast.makeText(this, "خطأ في قراءة الكود", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "خطأ في النسخ", Toast.LENGTH_SHORT).show()
         }
     }
 
-    // --- هذا هو الـ JSON الإجباري: VLESS + WebSocket + No TLS ---
+    // --- التعديل الجوهري: حذف inbounds وتعديل Routing ---
     private fun createJsonConfig(): String {
         val address = etAddress.text.toString()
         val port = etPort.text.toString().toIntOrNull() ?: 80
         val uuid = etUserId.text.toString()
-        val hostHeader = etSni.text.toString() // هنا يعمل كـ Host Header
+        val hostHeader = etSni.text.toString()
         val path = etPath.text.toString()
 
         return """
         {
             "log": { "loglevel": "warning" },
             "dns": {
-                "servers": [
-                    "8.8.8.8",
-                    "1.1.1.1"
-                ]
+                "servers": [ "8.8.8.8", "1.1.1.1" ]
             },
-            "inbounds": [
-                {
-                    "port": 10808,
-                    "protocol": "socks",
-                    "sniffing": {
-                        "enabled": true,
-                        "destOverride": ["http", "tls"]
-                    },
-                    "settings": { "auth": "noauth" }
-                }
-            ],
             "outbounds": [
                 {
                     "tag": "proxy",
@@ -182,7 +164,7 @@ class MainActivity : Activity() {
                 }
             ],
             "routing": {
-                "domainStrategy": "AsIs",
+                "domainStrategy": "IPIfNonMatch",
                 "rules": [
                     {
                         "type": "field",
@@ -216,7 +198,7 @@ class MainActivity : Activity() {
             intent.action = "START_VPN"
             intent.putExtra("V2RAY_CONFIG", jsonConfig)
             startService(intent)
-            tvLogs.text = "Connecting to ${etAddress.text} (No TLS)..."
+            tvLogs.text = "Connecting..."
         }
     }
 
