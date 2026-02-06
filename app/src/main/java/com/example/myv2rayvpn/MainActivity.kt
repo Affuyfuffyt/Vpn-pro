@@ -16,8 +16,8 @@ import android.os.Looper
 import android.os.StrictMode
 import android.widget.*
 import androidx.annotation.RequiresApi
-import java.net.HttpURLConnection
 import java.net.URL
+import javax.net.ssl.HttpsURLConnection
 
 class MainActivity : Activity() {
 
@@ -37,46 +37,41 @@ class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
-        // السماح بالشبكة في الخيط الرئيسي للفحص السريع (لأغراض التصحيح فقط)
+        // السماح بالشبكة للفحص
         val policy = StrictMode.ThreadPolicy.Builder().permitAll().build()
         StrictMode.setThreadPolicy(policy)
 
         val mainLayout = LinearLayout(this)
         mainLayout.orientation = LinearLayout.VERTICAL
         mainLayout.setPadding(30, 30, 30, 30)
-        mainLayout.setBackgroundColor(Color.parseColor("#EEEEEE"))
+        mainLayout.setBackgroundColor(Color.parseColor("#E0E0E0"))
 
-        // --- شاشة التشخيص (Doctor Monitor) ---
+        // شاشة الحالة
         val statusLayout = LinearLayout(this)
         statusLayout.orientation = LinearLayout.VERTICAL
         statusLayout.setPadding(20, 20, 20, 20)
         statusLayout.setBackgroundColor(Color.BLACK)
         
-        val titleParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT)
-        titleParams.gravity = android.view.Gravity.CENTER_HORIZONTAL
-        
         val lblStatus = TextView(this)
-        lblStatus.text = "📶 REAL INTERNET CHECK"
-        lblStatus.setTextColor(Color.CYAN)
-        lblStatus.layoutParams = titleParams
+        lblStatus.text = "🌍 GLOBAL CONNECTION STATUS"
+        lblStatus.setTextColor(Color.YELLOW)
+        lblStatus.gravity = android.view.Gravity.CENTER
         statusLayout.addView(lblStatus)
 
         tvStatus = TextView(this)
         tvStatus.text = "DISCONNECTED"
-        tvStatus.textSize = 16f
+        tvStatus.textSize = 18f
         tvStatus.setTextColor(Color.RED)
         tvStatus.gravity = android.view.Gravity.CENTER
         tvStatus.setPadding(0, 10, 0, 0)
         statusLayout.addView(tvStatus)
         mainLayout.addView(statusLayout)
 
-        // زر اللصق
         val btnPaste = Button(this)
-        btnPaste.text = "📋 لصق الكود (PASTE CONFIG)"
+        btnPaste.text = "📋 لصق كود (VLESS WS)"
         btnPaste.setOnClickListener { pasteFromClipboard() }
         mainLayout.addView(btnPaste)
 
-        // الحقول
         fun createField(label: String, default: String = ""): EditText {
             val txt = TextView(this)
             txt.text = label; txt.textSize = 12f; txt.setTextColor(Color.DKGRAY)
@@ -87,10 +82,10 @@ class MainActivity : Activity() {
             return edt
         }
 
-        etAddress = createField("Address", "")
+        etAddress = createField("IP Address", "")
         etPort = createField("Port", "80")
         etUserId = createField("UUID", "")
-        etSni = createField("Host / SNI", "")
+        etSni = createField("Host Header", "")
         etPath = createField("Path", "/")
 
         val spacer = TextView(this)
@@ -98,25 +93,19 @@ class MainActivity : Activity() {
         mainLayout.addView(spacer)
 
         btnConnect = Button(this)
-        btnConnect.text = "CONNECT & DIAGNOSE"
+        btnConnect.text = "🔥 تشغيل إجباري (GLOBAL FORCE)"
         btnConnect.textSize = 16f
         btnConnect.setTextColor(Color.WHITE)
-        btnConnect.setBackgroundColor(Color.parseColor("#00574B"))
+        btnConnect.setBackgroundColor(Color.parseColor("#D32F2F")) // أحمر قوي
         btnConnect.minHeight = 150
         btnConnect.setOnClickListener { startVpn() }
         mainLayout.addView(btnConnect)
 
-        // السجلات
-        val logLabel = TextView(this)
-        logLabel.text = "Detailed Logs:"
-        logLabel.setPadding(0, 20, 0, 5)
-        mainLayout.addView(logLabel)
-
         val scroller = ScrollView(this)
         tvLogs = TextView(this)
         tvLogs.textSize = 10f
-        tvLogs.setTextColor(Color.DKGRAY)
-        tvLogs.text = "Waiting for action..."
+        tvLogs.setTextColor(Color.BLACK)
+        tvLogs.text = "Waiting..."
         scroller.addView(tvLogs)
         val params = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 400)
         scroller.layoutParams = params
@@ -126,7 +115,6 @@ class MainActivity : Activity() {
         registerReceiver(logReceiver, IntentFilter("VPN_LOG_UPDATE"), Context.RECEIVER_NOT_EXPORTED)
     }
 
-    // --- نظام الفحص الحقيقي (Real HTTP Check) ---
     private val internetCheckRunnable = object : Runnable {
         override fun run() {
             if (isRunning) {
@@ -134,34 +122,26 @@ class MainActivity : Activity() {
                     val result = checkRealInternet()
                     runOnUiThread {
                         tvStatus.text = result
-                        if (result.contains("SUCCESS")) {
-                            tvStatus.setTextColor(Color.GREEN)
-                        } else {
-                            tvStatus.setTextColor(Color.RED)
-                        }
+                        if (result.contains("ONLINE")) tvStatus.setTextColor(Color.GREEN)
+                        else tvStatus.setTextColor(Color.RED)
                     }
                 }.start()
-                handler.postDelayed(this, 3000) // فحص كل 3 ثواني
+                handler.postDelayed(this, 2000)
             }
         }
     }
 
     private fun checkRealInternet(): String {
         return try {
-            // محاولة فتح موقع خفيف جداً للتأكد من وجود إنترنت حقيقي
-            val url = URL("http://clients3.google.com/generate_204")
-            val connection = url.openConnection() as HttpURLConnection
+            val url = URL("https://www.google.com")
+            val connection = url.openConnection() as HttpsURLConnection
             connection.connectTimeout = 2000
             connection.readTimeout = 2000
             connection.requestMethod = "HEAD"
-            
             val code = connection.responseCode
             connection.disconnect()
-            
-            if (code == 204) "✅ SUCCESS: Internet Access OK" else "⚠️ Connected but HTTP Error: $code"
-        } catch (e: Exception) {
-            "❌ NO INTERNET: ${e.message}"
-        }
+            if (code == 200) "✅ ONLINE" else "⚠️ Error: $code"
+        } catch (e: Exception) { "❌ NO NET" }
     }
 
     private fun pasteFromClipboard() {
@@ -182,11 +162,12 @@ class MainActivity : Activity() {
                 val sniOrHost = uri.getQueryParameter("sni") ?: uri.getQueryParameter("host") ?: ""
                 etSni.setText(sniOrHost)
                 etPath.setText(uri.getQueryParameter("path") ?: "/")
-                Toast.makeText(this, "Config Loaded", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, "تم نسخ الإعدادات", Toast.LENGTH_SHORT).show()
             }
         } catch (e: Exception) { }
     }
 
+    // --- هذا هو التغيير الجذري: JSON بسيط جداً ---
     private fun createJsonConfig(): String {
         val address = etAddress.text.toString()
         val port = etPort.text.toString().toIntOrNull() ?: 80
@@ -194,25 +175,10 @@ class MainActivity : Activity() {
         val hostHeader = etSni.text.toString()
         val path = etPath.text.toString()
 
-        // --- التعديل الحاسم: Sniffing + Catch-All Rule ---
-        // أعدنا تفعيل sniffing لأنه ضروري جداً لتوجيه الدومينات بدون geoip.dat
         return """
         {
             "log": { "loglevel": "warning" },
-            "dns": {
-                "servers": [ "8.8.8.8", "1.1.1.1" ]
-            },
-            "inbounds": [
-                {
-                    "port": 10808,
-                    "protocol": "socks",
-                    "sniffing": {
-                        "enabled": true,
-                        "destOverride": ["http", "tls"]
-                    },
-                    "settings": { "auth": "noauth" }
-                }
-            ],
+            "inbounds": [], 
             "outbounds": [
                 {
                     "tag": "proxy",
@@ -240,21 +206,18 @@ class MainActivity : Activity() {
             "routing": {
                 "domainStrategy": "AsIs",
                 "rules": [
-                    {
-                        "type": "field",
-                        "ip": [ "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "127.0.0.0/8" ],
-                        "outboundTag": "direct"
-                    },
-                    {
-                        "type": "field",
-                        "network": "tcp,udp",
-                        "outboundTag": "proxy"
-                    }
+                    { "type": "field", "outboundTag": "direct", "ip": [ "geoip:private" ] },
+                    { "type": "field", "outboundTag": "proxy", "port": "0-65535" } 
                 ]
             }
         }
         """.trimIndent()
     }
+    // شرح JSON:
+    // 1. Inbounds فارغ (لأننا نستخدم VPN FD).
+    // 2. Routing: أي شيء برايفت (شبكة داخلية) -> Direct.
+    // 3. Routing: أي شيء آخر (من 0 إلى 65535) -> Proxy (للسيرفر).
+    // هذا سيجبر الإنترنت على العمل.
 
     private fun startVpn() {
         val intent = VpnService.prepare(this)
@@ -273,7 +236,7 @@ class MainActivity : Activity() {
             intent.putExtra("V2RAY_CONFIG", jsonConfig)
             startService(intent)
             
-            tvLogs.text = "Connecting..."
+            tvLogs.text = "جاري الاتصال الإجباري..."
             isRunning = true
             handler.post(internetCheckRunnable)
         }
