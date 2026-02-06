@@ -93,7 +93,7 @@ class MainActivity : Activity() {
         mainLayout.addView(spacer)
 
         btnConnect = Button(this)
-        btnConnect.text = "🔥 تشغيل إجباري (GLOBAL FORCE)"
+        btnConnect.text = "🔥 تشغيل (FIXED ROUTING)"
         btnConnect.textSize = 16f
         btnConnect.setTextColor(Color.WHITE)
         btnConnect.setBackgroundColor(Color.parseColor("#D32F2F")) // أحمر قوي
@@ -135,8 +135,8 @@ class MainActivity : Activity() {
         return try {
             val url = URL("https://www.google.com")
             val connection = url.openConnection() as HttpsURLConnection
-            connection.connectTimeout = 2000
-            connection.readTimeout = 2000
+            connection.connectTimeout = 3000
+            connection.readTimeout = 3000
             connection.requestMethod = "HEAD"
             val code = connection.responseCode
             connection.disconnect()
@@ -167,7 +167,7 @@ class MainActivity : Activity() {
         } catch (e: Exception) { }
     }
 
-    // --- هذا هو التغيير الجذري: JSON بسيط جداً ---
+    // --- التصحيح هنا: استبدال geoip:private بالأرقام ---
     private fun createJsonConfig(): String {
         val address = etAddress.text.toString()
         val port = etPort.text.toString().toIntOrNull() ?: 80
@@ -206,18 +206,23 @@ class MainActivity : Activity() {
             "routing": {
                 "domainStrategy": "AsIs",
                 "rules": [
-                    { "type": "field", "outboundTag": "direct", "ip": [ "geoip:private" ] },
-                    { "type": "field", "outboundTag": "proxy", "port": "0-65535" } 
+                    { 
+                        "type": "field", 
+                        "outboundTag": "direct", 
+                        "ip": [ "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "127.0.0.0/8" ] 
+                    },
+                    { 
+                        "type": "field", 
+                        "outboundTag": "proxy", 
+                        "network": "tcp,udp" 
+                    } 
                 ]
             }
         }
         """.trimIndent()
     }
-    // شرح JSON:
-    // 1. Inbounds فارغ (لأننا نستخدم VPN FD).
-    // 2. Routing: أي شيء برايفت (شبكة داخلية) -> Direct.
-    // 3. Routing: أي شيء آخر (من 0 إلى 65535) -> Proxy (للسيرفر).
-    // هذا سيجبر الإنترنت على العمل.
+    // لاحظ: لقد مسحت "geoip:private" تماماً واستبدلتها بالأرقام أعلاه.
+    // هذا سيحل مشكلة "failed to load file: geoip.dat" نهائياً.
 
     private fun startVpn() {
         val intent = VpnService.prepare(this)
@@ -236,7 +241,7 @@ class MainActivity : Activity() {
             intent.putExtra("V2RAY_CONFIG", jsonConfig)
             startService(intent)
             
-            tvLogs.text = "جاري الاتصال الإجباري..."
+            tvLogs.text = "جاري الاتصال..."
             isRunning = true
             handler.post(internetCheckRunnable)
         }
