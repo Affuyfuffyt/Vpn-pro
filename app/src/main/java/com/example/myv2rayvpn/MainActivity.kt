@@ -29,8 +29,6 @@ class MainActivity : Activity() {
     private lateinit var tvLogs: TextView
     private lateinit var btnConnect: Button
     
-    // ألغينا الفحص الوهمي لأنه يخدعنا، سنعتمد على التجربة الحقيقية
-    
     @RequiresApi(Build.VERSION_CODES.O)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -40,9 +38,8 @@ class MainActivity : Activity() {
         mainLayout.setPadding(30, 30, 30, 30)
         mainLayout.setBackgroundColor(Color.WHITE)
 
-        // العنوان
         val title = TextView(this)
-        title.text = "V2RAY PROFESSIONAL"
+        title.text = "V2RAY FINAL FIX"
         title.textSize = 20f
         title.setTextColor(Color.BLACK)
         title.gravity = android.view.Gravity.CENTER
@@ -74,10 +71,10 @@ class MainActivity : Activity() {
         mainLayout.addView(spacer)
 
         btnConnect = Button(this)
-        btnConnect.text = "⚡ اتصال (SNIFFING ENABLED)"
+        btnConnect.text = "🚀 اتصال (بدون أخطاء)"
         btnConnect.textSize = 16f
         btnConnect.setTextColor(Color.WHITE)
-        btnConnect.setBackgroundColor(Color.parseColor("#1A237E")) // أزرق غامق
+        btnConnect.setBackgroundColor(Color.parseColor("#1A237E")) 
         btnConnect.minHeight = 150
         btnConnect.setOnClickListener { startVpn() }
         mainLayout.addView(btnConnect)
@@ -90,7 +87,7 @@ class MainActivity : Activity() {
         tvLogs = TextView(this)
         tvLogs.textSize = 10f
         tvLogs.setTextColor(Color.DKGRAY)
-        tvLogs.text = "جاهز للاتصال..."
+        tvLogs.text = "جاهز..."
         scroller.addView(tvLogs)
         val params = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 400)
         scroller.layoutParams = params
@@ -118,12 +115,11 @@ class MainActivity : Activity() {
                 val sniOrHost = uri.getQueryParameter("sni") ?: uri.getQueryParameter("host") ?: ""
                 etSni.setText(sniOrHost)
                 etPath.setText(uri.getQueryParameter("path") ?: "/")
-                Toast.makeText(this, "تم الإعداد بنجاح", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, "تم الإعداد", Toast.LENGTH_SHORT).show()
             }
         } catch (e: Exception) { }
     }
 
-    // --- JSON القياسي (مثل v2rayNG) ---
     private fun createJsonConfig(): String {
         val address = etAddress.text.toString()
         val port = etPort.text.toString().toIntOrNull() ?: 80
@@ -131,7 +127,7 @@ class MainActivity : Activity() {
         val hostHeader = etSni.text.toString()
         val path = etPath.text.toString()
 
-        // هذا الـ JSON يحتوي على Sniffing وهو السر في عمل الإنترنت
+        // --- هنا الإصلاح: حذف geoip واستبداله بأرقام ---
         return """
         {
             "log": { "loglevel": "warning" },
@@ -180,15 +176,22 @@ class MainActivity : Activity() {
             "routing": {
                 "domainStrategy": "AsIs",
                 "rules": [
-                    { "type": "field", "outboundTag": "direct", "ip": [ "geoip:private" ] },
-                    { "type": "field", "outboundTag": "proxy", "port": "0-65535" } 
+                    { 
+                        "type": "field", 
+                        "outboundTag": "direct", 
+                        "ip": [ "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "127.0.0.0/8" ] 
+                    },
+                    { 
+                        "type": "field", 
+                        "outboundTag": "proxy", 
+                        "port": "0-65535" 
+                    } 
                 ]
             }
         }
         """.trimIndent()
+        // لاحظ في قسم rules: لا يوجد كلمة geoip نهائياً.
     }
-    // ملاحظة: لقد أعدت Sniffing، واستبدلت geoip بـ AsIs للتبسيط، 
-    // ولكن الأهم هو أن inbound أصبح جاهزاً لاستقبال البيانات وفحصها.
 
     private fun startVpn() {
         val intent = VpnService.prepare(this)
@@ -206,8 +209,7 @@ class MainActivity : Activity() {
             intent.action = "START_VPN"
             intent.putExtra("V2RAY_CONFIG", jsonConfig)
             startService(intent)
-            
-            tvLogs.text = "تم الاتصال.. يرجى تجربة يوتيوب الآن."
+            tvLogs.text = "تم الاتصال.. (تم إزالة geoip)"
         }
     }
 
