@@ -19,7 +19,7 @@ class MainActivity : Activity() {
     private lateinit var etAddress: EditText
     private lateinit var etPort: EditText
     private lateinit var etUserId: EditText
-    private lateinit var etSni: EditText
+    private lateinit var etSni: EditText // سنستخدمه كـ Host للـ WS
     private lateinit var etPath: EditText
     private lateinit var tvLogs: TextView
     private lateinit var btnConnect: Button
@@ -55,9 +55,9 @@ class MainActivity : Activity() {
         }
 
         etAddress = createField("Address / Host")
-        etPort = createField("Port", "443")
-        etUserId = createField("UUID / Password")
-        etSni = createField("SNI / Server Name")
+        etPort = createField("Port", "80")
+        etUserId = createField("UUID")
+        etSni = createField("Host (Header)") // مهم جداً للـ WebSocket
         etPath = createField("Path", "/")
 
         val spacer = TextView(this)
@@ -65,8 +65,8 @@ class MainActivity : Activity() {
         mainLayout.addView(spacer)
 
         btnConnect = Button(this)
-        btnConnect.text = "CONNECT"
-        btnConnect.textSize = 18f
+        btnConnect.text = "CONNECT (VLESS - WS - NoTLS)"
+        btnConnect.textSize = 16f
         btnConnect.setTextColor(Color.WHITE)
         btnConnect.setBackgroundColor(Color.parseColor("#2E3A59")) 
         btnConnect.minHeight = 150
@@ -82,14 +82,13 @@ class MainActivity : Activity() {
         tvLogs = TextView(this)
         tvLogs.textSize = 12f
         tvLogs.setTextColor(Color.DKGRAY)
-        tvLogs.text = "Ready..."
+        tvLogs.text = "Waiting..."
         scroller.addView(tvLogs)
         val params = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 400)
         scroller.layoutParams = params
         mainLayout.addView(scroller)
 
         setContentView(mainLayout)
-
         registerReceiver(logReceiver, IntentFilter("VPN_LOG_UPDATE"), Context.RECEIVER_NOT_EXPORTED)
     }
 
@@ -108,23 +107,26 @@ class MainActivity : Activity() {
                 etUserId.setText(uri.userInfo)
                 etAddress.setText(uri.host)
                 etPort.setText(uri.port.toString())
-                etSni.setText(uri.getQueryParameter("sni") ?: "")
+                // في حالة WS NoTLS، الـ SNI عادة هو نفسه الـ Host Header
+                val sniOrHost = uri.getQueryParameter("sni") ?: uri.getQueryParameter("host") ?: ""
+                etSni.setText(sniOrHost)
                 etPath.setText(uri.getQueryParameter("path") ?: "/")
-                Toast.makeText(this, "تم استخراج بيانات VLESS", Toast.LENGTH_SHORT).show()
+                
+                Toast.makeText(this, "تم تجهيز VLESS WS (No TLS)", Toast.LENGTH_SHORT).show()
             } else {
-                Toast.makeText(this, "يرجى نسخ كود Vless صحيح", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, "الكود غير مدعوم، يرجى نسخ VLESS", Toast.LENGTH_SHORT).show()
             }
         } catch (e: Exception) {
             Toast.makeText(this, "خطأ في قراءة الكود", Toast.LENGTH_SHORT).show()
         }
     }
 
-    // --- التعديل الحاسم: إضافة DNS وإصلاح التوجيه ---
+    // --- هذا هو الـ JSON الإجباري: VLESS + WebSocket + No TLS ---
     private fun createJsonConfig(): String {
         val address = etAddress.text.toString()
-        val port = etPort.text.toString().toIntOrNull() ?: 443
+        val port = etPort.text.toString().toIntOrNull() ?: 80
         val uuid = etUserId.text.toString()
-        val sni = etSni.text.toString()
+        val hostHeader = etSni.text.toString() // هنا يعمل كـ Host Header
         val path = etPath.text.toString()
 
         return """
@@ -167,7 +169,9 @@ class MainActivity : Activity() {
                         "security": "none",
                         "wsSettings": {
                             "path": "$path",
-                            "headers": { "Host": "$sni" }
+                            "headers": {
+                                "Host": "$hostHeader"
+                            }
                         }
                     }
                 },
@@ -212,7 +216,7 @@ class MainActivity : Activity() {
             intent.action = "START_VPN"
             intent.putExtra("V2RAY_CONFIG", jsonConfig)
             startService(intent)
-            tvLogs.text = "Connecting to ${etAddress.text}..."
+            tvLogs.text = "Connecting to ${etAddress.text} (No TLS)..."
         }
     }
 
