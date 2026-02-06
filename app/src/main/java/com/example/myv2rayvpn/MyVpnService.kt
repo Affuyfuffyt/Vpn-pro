@@ -30,41 +30,40 @@ class MyVpnService : VpnService() {
             sendLog("🚀 Starting VPN Builder...")
             
             val builder = Builder()
-            builder.setSession("V2Ray Diagnostic")
+            builder.setSession("V2Ray Pro")
             builder.addAddress("10.0.0.2", 24)
             builder.addRoute("0.0.0.0", 0)
-            builder.setMtu(1280)
+            builder.setMtu(1280) // حجم حزمة آمن
             builder.addDnsServer("8.8.8.8")
             
-            // محاولة استثناء التطبيق نفسه لمنع التكرار (Loop)
             try {
                 builder.addDisallowedApplication(packageName)
-                sendLog("✅ App excluded from VPN (Loop prevention)")
+                sendLog("✅ App excluded to prevent loops")
             } catch (e: Exception) {
-                sendLog("⚠️ Could not exclude app: ${e.message}")
+                sendLog("⚠️ Loop prevention failed: ${e.message}")
             }
             
             vpnInterface = builder.establish()
             if (vpnInterface == null) {
-                sendLog("❌ ERROR: Failed to create VPN Interface!")
+                sendLog("❌ ERROR: Failed to create Interface!")
                 return
             }
             sendLog("✅ VPN Interface Created (FD: ${vpnInterface!!.fd})")
 
             val callback = object : CoreCallbackHandler {
                 override fun onEmitStatus(p0: Long, p1: String?): Long { 
-                    // هنا سنرى رسائل Xray الحقيقية
-                    sendLog("CORE: $p1") 
+                    // إرسال رسائل النظام للشاشة السوداء
+                    if (p1 != null) sendLog("CORE: $p1") 
                     return 0 
                 }
                 override fun shutdown(): Long { sendLog("🔻 Core Shutdown"); return 0 }
-                override fun startup(): Long { sendLog("✅ Core Started!"); return 0 }
+                override fun startup(): Long { sendLog("✅ Core Started Successfully!"); return 0 }
             }
 
             sendLog("⚙️ Initializing LibV2Ray...")
             coreController = Libv2ray.newCoreController(callback)
             
-            sendLog("🔄 Sending config to Core...")
+            // بدء العمل
             coreController?.startLoop(config, vpnInterface!!.fd)
 
         } catch (e: Exception) {
