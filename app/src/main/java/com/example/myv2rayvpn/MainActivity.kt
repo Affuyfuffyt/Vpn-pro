@@ -13,8 +13,11 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.os.StrictMode
 import android.widget.*
 import androidx.annotation.RequiresApi
+import java.net.HttpURLConnection
+import java.net.URL
 
 class MainActivity : Activity() {
 
@@ -24,44 +27,52 @@ class MainActivity : Activity() {
     private lateinit var etSni: EditText
     private lateinit var etPath: EditText
     private lateinit var tvLogs: TextView
-    private lateinit var tvPing: TextView
+    private lateinit var tvStatus: TextView
     private lateinit var btnConnect: Button
     
-    // إعدادات البنج
     private val handler = Handler(Looper.getMainLooper())
     private var isRunning = false
 
     @RequiresApi(Build.VERSION_CODES.O)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        
+        // السماح بالشبكة في الخيط الرئيسي للفحص السريع (لأغراض التصحيح فقط)
+        val policy = StrictMode.ThreadPolicy.Builder().permitAll().build()
+        StrictMode.setThreadPolicy(policy)
 
         val mainLayout = LinearLayout(this)
         mainLayout.orientation = LinearLayout.VERTICAL
         mainLayout.setPadding(30, 30, 30, 30)
-        mainLayout.setBackgroundColor(Color.parseColor("#F5F5F5"))
+        mainLayout.setBackgroundColor(Color.parseColor("#EEEEEE"))
 
-        // --- شاشة البنج (Doctor Mode) ---
-        val pingLayout = LinearLayout(this)
-        pingLayout.orientation = LinearLayout.HORIZONTAL
-        pingLayout.setPadding(20, 20, 20, 20)
-        pingLayout.setBackgroundColor(Color.WHITE)
+        // --- شاشة التشخيص (Doctor Monitor) ---
+        val statusLayout = LinearLayout(this)
+        statusLayout.orientation = LinearLayout.VERTICAL
+        statusLayout.setPadding(20, 20, 20, 20)
+        statusLayout.setBackgroundColor(Color.BLACK)
         
-        val pingIcon = TextView(this)
-        pingIcon.text = "📶 PING: "
-        pingIcon.textSize = 18f
-        pingIcon.setTextColor(Color.BLACK)
-        pingLayout.addView(pingIcon)
+        val titleParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+        titleParams.gravity = android.view.Gravity.CENTER_HORIZONTAL
+        
+        val lblStatus = TextView(this)
+        lblStatus.text = "📶 REAL INTERNET CHECK"
+        lblStatus.setTextColor(Color.CYAN)
+        lblStatus.layoutParams = titleParams
+        statusLayout.addView(lblStatus)
 
-        tvPing = TextView(this)
-        tvPing.text = "STOPPED"
-        tvPing.textSize = 18f
-        tvPing.setTextColor(Color.RED)
-        pingLayout.addView(tvPing)
-        mainLayout.addView(pingLayout)
+        tvStatus = TextView(this)
+        tvStatus.text = "DISCONNECTED"
+        tvStatus.textSize = 16f
+        tvStatus.setTextColor(Color.RED)
+        tvStatus.gravity = android.view.Gravity.CENTER
+        tvStatus.setPadding(0, 10, 0, 0)
+        statusLayout.addView(tvStatus)
+        mainLayout.addView(statusLayout)
 
         // زر اللصق
         val btnPaste = Button(this)
-        btnPaste.text = "📋 لصق الكود (PASTE)"
+        btnPaste.text = "📋 لصق الكود (PASTE CONFIG)"
         btnPaste.setOnClickListener { pasteFromClipboard() }
         mainLayout.addView(btnPaste)
 
@@ -79,7 +90,7 @@ class MainActivity : Activity() {
         etAddress = createField("Address", "")
         etPort = createField("Port", "80")
         etUserId = createField("UUID", "")
-        etSni = createField("Host (Header)", "")
+        etSni = createField("Host / SNI", "")
         etPath = createField("Path", "/")
 
         val spacer = TextView(this)
@@ -87,29 +98,27 @@ class MainActivity : Activity() {
         mainLayout.addView(spacer)
 
         btnConnect = Button(this)
-        btnConnect.text = "CONNECT / START DIAGNOSIS"
+        btnConnect.text = "CONNECT & DIAGNOSE"
         btnConnect.textSize = 16f
         btnConnect.setTextColor(Color.WHITE)
-        btnConnect.setBackgroundColor(Color.parseColor("#2E3A59"))
+        btnConnect.setBackgroundColor(Color.parseColor("#00574B"))
         btnConnect.minHeight = 150
         btnConnect.setOnClickListener { startVpn() }
         mainLayout.addView(btnConnect)
 
-        // شاشة الأخطاء (Terminal)
+        // السجلات
         val logLabel = TextView(this)
-        logLabel.text = "Diagnostics & Logs (سجل الأخطاء):"
-        logLabel.setPadding(0, 20, 0, 10)
+        logLabel.text = "Detailed Logs:"
+        logLabel.setPadding(0, 20, 0, 5)
         mainLayout.addView(logLabel)
 
         val scroller = ScrollView(this)
         tvLogs = TextView(this)
         tvLogs.textSize = 10f
-        tvLogs.setTextColor(Color.GREEN) // لون أخضر مثل الهكرز
-        tvLogs.setBackgroundColor(Color.BLACK) 
-        tvLogs.setPadding(15, 15, 15, 15)
-        tvLogs.text = "System Ready...\nWaiting for connection..."
+        tvLogs.setTextColor(Color.DKGRAY)
+        tvLogs.text = "Waiting for action..."
         scroller.addView(tvLogs)
-        val params = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 500)
+        val params = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 400)
         scroller.layoutParams = params
         mainLayout.addView(scroller)
 
@@ -117,40 +126,42 @@ class MainActivity : Activity() {
         registerReceiver(logReceiver, IntentFilter("VPN_LOG_UPDATE"), Context.RECEIVER_NOT_EXPORTED)
     }
 
-    // --- نظام البنج الحقيقي ---
-    private val pingRunnable = object : Runnable {
+    // --- نظام الفحص الحقيقي (Real HTTP Check) ---
+    private val internetCheckRunnable = object : Runnable {
         override fun run() {
             if (isRunning) {
                 Thread {
-                    val latency = checkPing()
+                    val result = checkRealInternet()
                     runOnUiThread {
-                        if (latency > 0) {
-                            tvPing.text = "$latency ms"
-                            tvPing.setTextColor(Color.parseColor("#008000")) // أخضر
+                        tvStatus.text = result
+                        if (result.contains("SUCCESS")) {
+                            tvStatus.setTextColor(Color.GREEN)
                         } else {
-                            tvPing.text = "TIMEOUT"
-                            tvPing.setTextColor(Color.RED) // أحمر
+                            tvStatus.setTextColor(Color.RED)
                         }
                     }
                 }.start()
-                handler.postDelayed(this, 1500) // فحص كل 1.5 ثانية
+                handler.postDelayed(this, 3000) // فحص كل 3 ثواني
             }
         }
     }
 
-    private fun checkPing(): Int {
+    private fun checkRealInternet(): String {
         return try {
-            // محاولة الوصول لجوجل
-            val process = Runtime.getRuntime().exec("/system/bin/ping -c 1 -w 1 8.8.8.8")
-            val exitValue = process.waitFor()
-            if (exitValue == 0) {
-                // محاكاة رقم تقريبي للسرعة (لأن قراءة الناتج معقدة قليلاً)
-                // أو إذا نجح الاتصال يعني النت موجود
-                (40..150).random()
-            } else {
-                -1
-            }
-        } catch (e: Exception) { -1 }
+            // محاولة فتح موقع خفيف جداً للتأكد من وجود إنترنت حقيقي
+            val url = URL("http://clients3.google.com/generate_204")
+            val connection = url.openConnection() as HttpURLConnection
+            connection.connectTimeout = 2000
+            connection.readTimeout = 2000
+            connection.requestMethod = "HEAD"
+            
+            val code = connection.responseCode
+            connection.disconnect()
+            
+            if (code == 204) "✅ SUCCESS: Internet Access OK" else "⚠️ Connected but HTTP Error: $code"
+        } catch (e: Exception) {
+            "❌ NO INTERNET: ${e.message}"
+        }
     }
 
     private fun pasteFromClipboard() {
@@ -171,7 +182,7 @@ class MainActivity : Activity() {
                 val sniOrHost = uri.getQueryParameter("sni") ?: uri.getQueryParameter("host") ?: ""
                 etSni.setText(sniOrHost)
                 etPath.setText(uri.getQueryParameter("path") ?: "/")
-                Toast.makeText(this, "تم استخراج البيانات", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, "Config Loaded", Toast.LENGTH_SHORT).show()
             }
         } catch (e: Exception) { }
     }
@@ -183,11 +194,25 @@ class MainActivity : Activity() {
         val hostHeader = etSni.text.toString()
         val path = etPath.text.toString()
 
-        // --- الإصلاح القاتل: حذف geoip:private واستبدالها بأرقام ---
+        // --- التعديل الحاسم: Sniffing + Catch-All Rule ---
+        // أعدنا تفعيل sniffing لأنه ضروري جداً لتوجيه الدومينات بدون geoip.dat
         return """
         {
             "log": { "loglevel": "warning" },
-            "dns": { "servers": [ "8.8.8.8", "1.1.1.1" ] },
+            "dns": {
+                "servers": [ "8.8.8.8", "1.1.1.1" ]
+            },
+            "inbounds": [
+                {
+                    "port": 10808,
+                    "protocol": "socks",
+                    "sniffing": {
+                        "enabled": true,
+                        "destOverride": ["http", "tls"]
+                    },
+                    "settings": { "auth": "noauth" }
+                }
+            ],
             "outbounds": [
                 {
                     "tag": "proxy",
@@ -213,17 +238,17 @@ class MainActivity : Activity() {
                 { "tag": "direct", "protocol": "freedom", "settings": {} }
             ],
             "routing": {
-                "domainStrategy": "IPIfNonMatch",
+                "domainStrategy": "AsIs",
                 "rules": [
                     {
                         "type": "field",
-                        "ip": [
-                            "10.0.0.0/8",
-                            "172.16.0.0/12",
-                            "192.168.0.0/16",
-                            "127.0.0.0/8"
-                        ],
+                        "ip": [ "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "127.0.0.0/8" ],
                         "outboundTag": "direct"
+                    },
+                    {
+                        "type": "field",
+                        "network": "tcp,udp",
+                        "outboundTag": "proxy"
                     }
                 ]
             }
@@ -248,20 +273,16 @@ class MainActivity : Activity() {
             intent.putExtra("V2RAY_CONFIG", jsonConfig)
             startService(intent)
             
-            tvLogs.text = "Initializing...\n"
-            tvPing.text = "CONNECTING..."
-            tvPing.setTextColor(Color.YELLOW)
-            
+            tvLogs.text = "Connecting..."
             isRunning = true
-            handler.post(pingRunnable)
+            handler.post(internetCheckRunnable)
         }
     }
 
     private val logReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             val log = intent?.getStringExtra("log_message")
-            val time = android.text.format.DateFormat.format("HH:mm:ss", java.util.Date())
-            tvLogs.append("[$time] $log\n")
+            tvLogs.append("\n$log")
             val scroll = tvLogs.parent as ScrollView
             scroll.fullScroll(ScrollView.FOCUS_DOWN)
         }
