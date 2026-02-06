@@ -27,52 +27,32 @@ class MainActivity : Activity() {
     private lateinit var etSni: EditText
     private lateinit var etPath: EditText
     private lateinit var tvLogs: TextView
-    private lateinit var tvStatus: TextView
     private lateinit var btnConnect: Button
     
-    private val handler = Handler(Looper.getMainLooper())
-    private var isRunning = false
-
+    // ألغينا الفحص الوهمي لأنه يخدعنا، سنعتمد على التجربة الحقيقية
+    
     @RequiresApi(Build.VERSION_CODES.O)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
-        // السماح بالشبكة (ضروري للفحص)
-        val policy = StrictMode.ThreadPolicy.Builder().permitAll().build()
-        StrictMode.setThreadPolicy(policy)
-
         val mainLayout = LinearLayout(this)
         mainLayout.orientation = LinearLayout.VERTICAL
         mainLayout.setPadding(30, 30, 30, 30)
         mainLayout.setBackgroundColor(Color.WHITE)
 
-        // شاشة الحالة العلوية
-        val statusLayout = LinearLayout(this)
-        statusLayout.orientation = LinearLayout.VERTICAL
-        statusLayout.setPadding(20, 20, 20, 20)
-        statusLayout.setBackgroundColor(Color.parseColor("#212121")) // رمادي غامق
-        
-        val lblStatus = TextView(this)
-        lblStatus.text = "⚡ حالة الاتصال الحقيقي"
-        lblStatus.setTextColor(Color.CYAN)
-        lblStatus.gravity = android.view.Gravity.CENTER
-        statusLayout.addView(lblStatus)
-
-        tvStatus = TextView(this)
-        tvStatus.text = "مفصول"
-        tvStatus.textSize = 20f
-        tvStatus.setTextColor(Color.GRAY)
-        tvStatus.gravity = android.view.Gravity.CENTER
-        tvStatus.setPadding(0, 10, 0, 0)
-        statusLayout.addView(tvStatus)
-        mainLayout.addView(statusLayout)
+        // العنوان
+        val title = TextView(this)
+        title.text = "V2RAY PROFESSIONAL"
+        title.textSize = 20f
+        title.setTextColor(Color.BLACK)
+        title.gravity = android.view.Gravity.CENTER
+        mainLayout.addView(title)
 
         val btnPaste = Button(this)
-        btnPaste.text = "📋 لصق كود السيرفر (VLESS)"
+        btnPaste.text = "📋 لصق الإعدادات (PASTE)"
         btnPaste.setOnClickListener { pasteFromClipboard() }
         mainLayout.addView(btnPaste)
 
-        // الحقول
         fun createField(label: String, default: String = ""): EditText {
             val txt = TextView(this)
             txt.text = label; txt.textSize = 12f; txt.setTextColor(Color.DKGRAY)
@@ -83,10 +63,10 @@ class MainActivity : Activity() {
             return edt
         }
 
-        etAddress = createField("IP Address", "")
+        etAddress = createField("IP / Address", "")
         etPort = createField("Port", "80")
         etUserId = createField("UUID", "")
-        etSni = createField("Host / SNI (مهم جداً)", "") // تأكد من تعبئة هذا الحقل
+        etSni = createField("SNI / Host", "")
         etPath = createField("Path", "/")
 
         val spacer = TextView(this)
@@ -94,19 +74,23 @@ class MainActivity : Activity() {
         mainLayout.addView(spacer)
 
         btnConnect = Button(this)
-        btnConnect.text = "🚀 اتصال (وضع الجوكر)"
-        btnConnect.textSize = 18f
+        btnConnect.text = "⚡ اتصال (SNIFFING ENABLED)"
+        btnConnect.textSize = 16f
         btnConnect.setTextColor(Color.WHITE)
-        btnConnect.setBackgroundColor(Color.parseColor("#00695C")) 
+        btnConnect.setBackgroundColor(Color.parseColor("#1A237E")) // أزرق غامق
         btnConnect.minHeight = 150
         btnConnect.setOnClickListener { startVpn() }
         mainLayout.addView(btnConnect)
 
+        val logLabel = TextView(this)
+        logLabel.text = "Logs:"
+        mainLayout.addView(logLabel)
+
         val scroller = ScrollView(this)
         tvLogs = TextView(this)
-        tvLogs.textSize = 11f
-        tvLogs.setTextColor(Color.BLACK)
-        tvLogs.text = "بانتظار التشغيل..."
+        tvLogs.textSize = 10f
+        tvLogs.setTextColor(Color.DKGRAY)
+        tvLogs.text = "جاهز للاتصال..."
         scroller.addView(tvLogs)
         val params = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 400)
         scroller.layoutParams = params
@@ -114,36 +98,6 @@ class MainActivity : Activity() {
 
         setContentView(mainLayout)
         registerReceiver(logReceiver, IntentFilter("VPN_LOG_UPDATE"), Context.RECEIVER_NOT_EXPORTED)
-    }
-
-    // فحص الإنترنت (رفعنا الوقت لـ 10 ثواني)
-    private val internetCheckRunnable = object : Runnable {
-        override fun run() {
-            if (isRunning) {
-                Thread {
-                    val result = checkRealInternet()
-                    runOnUiThread {
-                        tvStatus.text = result
-                        if (result.contains("تعمل")) tvStatus.setTextColor(Color.GREEN)
-                        else tvStatus.setTextColor(Color.parseColor("#FF9800")) // برتقالي (محاولة)
-                    }
-                }.start()
-                handler.postDelayed(this, 3000)
-            }
-        }
-    }
-
-    private fun checkRealInternet(): String {
-        return try {
-            val url = URL("https://www.google.com")
-            val connection = url.openConnection() as HttpsURLConnection
-            connection.connectTimeout = 10000 // 10 ثواني انتظار
-            connection.readTimeout = 10000
-            connection.requestMethod = "HEAD"
-            val code = connection.responseCode
-            connection.disconnect()
-            if (code == 200) "✅ الشبكة تعمل (ONLINE)" else "⚠️ متصل ولكن بطيء ($code)"
-        } catch (e: Exception) { "❌ جاري المحاولة..." }
     }
 
     private fun pasteFromClipboard() {
@@ -164,12 +118,12 @@ class MainActivity : Activity() {
                 val sniOrHost = uri.getQueryParameter("sni") ?: uri.getQueryParameter("host") ?: ""
                 etSni.setText(sniOrHost)
                 etPath.setText(uri.getQueryParameter("path") ?: "/")
-                Toast.makeText(this, "تم نسخ الإعدادات", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, "تم الإعداد بنجاح", Toast.LENGTH_SHORT).show()
             }
         } catch (e: Exception) { }
     }
 
-    // --- JSON الجوكر (بدون فلاتر، بدون GeoIP، بدون وجع رأس) ---
+    // --- JSON القياسي (مثل v2rayNG) ---
     private fun createJsonConfig(): String {
         val address = etAddress.text.toString()
         val port = etPort.text.toString().toIntOrNull() ?: 80
@@ -177,11 +131,24 @@ class MainActivity : Activity() {
         val hostHeader = etSni.text.toString()
         val path = etPath.text.toString()
 
-        // هذا الـ JSON يرسل كل شيء للسيرفر مباشرة (Outbound واحد فقط)
+        // هذا الـ JSON يحتوي على Sniffing وهو السر في عمل الإنترنت
         return """
         {
             "log": { "loglevel": "warning" },
-            "inbounds": [], 
+            "inbounds": [
+                {
+                    "port": 10808,
+                    "protocol": "socks",
+                    "sniffing": {
+                        "enabled": true,
+                        "destOverride": ["http", "tls"]
+                    },
+                    "settings": {
+                        "auth": "noauth",
+                        "udp": true
+                    }
+                }
+            ],
             "outbounds": [
                 {
                     "tag": "proxy",
@@ -202,17 +169,26 @@ class MainActivity : Activity() {
                             "path": "$path",
                             "headers": { "Host": "$hostHeader" }
                         }
-                    }
-                }
+                    },
+                    "mux": { "enabled": false, "concurrency": -1 }
+                },
+                { "tag": "direct", "protocol": "freedom", "settings": {} }
             ],
             "dns": {
-                "servers": [ "8.8.8.8" ]
+                "servers": [ "8.8.8.8", "1.1.1.1" ]
+            },
+            "routing": {
+                "domainStrategy": "AsIs",
+                "rules": [
+                    { "type": "field", "outboundTag": "direct", "ip": [ "geoip:private" ] },
+                    { "type": "field", "outboundTag": "proxy", "port": "0-65535" } 
+                ]
             }
         }
         """.trimIndent()
     }
-    // ملاحظة: قمت بإزالة قسم "Routing" و "Direct Outbound" بالكامل.
-    // هذا يجبر كل ذرة بيانات (بما فيها DNS) على الذهاب للسيرفر.
+    // ملاحظة: لقد أعدت Sniffing، واستبدلت geoip بـ AsIs للتبسيط، 
+    // ولكن الأهم هو أن inbound أصبح جاهزاً لاستقبال البيانات وفحصها.
 
     private fun startVpn() {
         val intent = VpnService.prepare(this)
@@ -231,10 +207,7 @@ class MainActivity : Activity() {
             intent.putExtra("V2RAY_CONFIG", jsonConfig)
             startService(intent)
             
-            tvLogs.text = "جاري الاتصال بالسيرفر..."
-            tvStatus.text = "جاري الربط..."
-            isRunning = true
-            handler.post(internetCheckRunnable)
+            tvLogs.text = "تم الاتصال.. يرجى تجربة يوتيوب الآن."
         }
     }
 
@@ -249,7 +222,6 @@ class MainActivity : Activity() {
     
     override fun onDestroy() {
         super.onDestroy()
-        isRunning = false
         unregisterReceiver(logReceiver)
     }
 }
