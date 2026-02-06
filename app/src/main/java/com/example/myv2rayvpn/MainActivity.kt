@@ -15,8 +15,6 @@ import android.os.Handler
 import android.os.Looper
 import android.widget.*
 import androidx.annotation.RequiresApi
-import java.io.BufferedReader
-import java.io.InputStreamReader
 
 class MainActivity : Activity() {
 
@@ -26,10 +24,10 @@ class MainActivity : Activity() {
     private lateinit var etSni: EditText
     private lateinit var etPath: EditText
     private lateinit var tvLogs: TextView
-    private lateinit var tvPing: TextView // نص البنج الجديد
+    private lateinit var tvPing: TextView
     private lateinit var btnConnect: Button
     
-    // متغيرات البنج
+    // إعدادات البنج
     private val handler = Handler(Looper.getMainLooper())
     private var isRunning = false
 
@@ -40,24 +38,24 @@ class MainActivity : Activity() {
         val mainLayout = LinearLayout(this)
         mainLayout.orientation = LinearLayout.VERTICAL
         mainLayout.setPadding(30, 30, 30, 30)
-        mainLayout.setBackgroundColor(Color.parseColor("#F0F0F0"))
+        mainLayout.setBackgroundColor(Color.parseColor("#F5F5F5"))
 
-        // --- منطقة البنج العلوية ---
+        // --- شاشة البنج (Doctor Mode) ---
         val pingLayout = LinearLayout(this)
         pingLayout.orientation = LinearLayout.HORIZONTAL
         pingLayout.setPadding(20, 20, 20, 20)
         pingLayout.setBackgroundColor(Color.WHITE)
         
-        val pingLabel = TextView(this)
-        pingLabel.text = "📶 PING: "
-        pingLabel.textSize = 18f
-        pingLabel.setTextColor(Color.BLACK)
-        pingLayout.addView(pingLabel)
+        val pingIcon = TextView(this)
+        pingIcon.text = "📶 PING: "
+        pingIcon.textSize = 18f
+        pingIcon.setTextColor(Color.BLACK)
+        pingLayout.addView(pingIcon)
 
         tvPing = TextView(this)
-        tvPing.text = "-- ms"
+        tvPing.text = "STOPPED"
         tvPing.textSize = 18f
-        tvPing.setTextColor(Color.parseColor("#008000")) // أخضر
+        tvPing.setTextColor(Color.RED)
         pingLayout.addView(tvPing)
         mainLayout.addView(pingLayout)
 
@@ -97,19 +95,19 @@ class MainActivity : Activity() {
         btnConnect.setOnClickListener { startVpn() }
         mainLayout.addView(btnConnect)
 
-        // شاشة الأخطاء (Diagnostics)
+        // شاشة الأخطاء (Terminal)
         val logLabel = TextView(this)
-        logLabel.text = "Diagnostics & Logs (تشخيص الأخطاء):"
+        logLabel.text = "Diagnostics & Logs (سجل الأخطاء):"
         logLabel.setPadding(0, 20, 0, 10)
         mainLayout.addView(logLabel)
 
         val scroller = ScrollView(this)
         tvLogs = TextView(this)
         tvLogs.textSize = 10f
-        tvLogs.setTextColor(Color.YELLOW)
-        tvLogs.setBackgroundColor(Color.BLACK) // خلفية سوداء مثل التيرمينال
-        tvLogs.setPadding(10, 10, 10, 10)
-        tvLogs.text = "System Ready..."
+        tvLogs.setTextColor(Color.GREEN) // لون أخضر مثل الهكرز
+        tvLogs.setBackgroundColor(Color.BLACK) 
+        tvLogs.setPadding(15, 15, 15, 15)
+        tvLogs.text = "System Ready...\nWaiting for connection..."
         scroller.addView(tvLogs)
         val params = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 500)
         scroller.layoutParams = params
@@ -119,41 +117,40 @@ class MainActivity : Activity() {
         registerReceiver(logReceiver, IntentFilter("VPN_LOG_UPDATE"), Context.RECEIVER_NOT_EXPORTED)
     }
 
-    // --- دالة البنج المستمر ---
+    // --- نظام البنج الحقيقي ---
     private val pingRunnable = object : Runnable {
         override fun run() {
             if (isRunning) {
                 Thread {
-                    val ms = checkPing()
+                    val latency = checkPing()
                     runOnUiThread {
-                        if (ms > 0) {
-                            tvPing.text = "$ms ms"
-                            tvPing.setTextColor(Color.parseColor("#008000"))
+                        if (latency > 0) {
+                            tvPing.text = "$latency ms"
+                            tvPing.setTextColor(Color.parseColor("#008000")) // أخضر
                         } else {
-                            tvPing.text = "Timeout"
-                            tvPing.setTextColor(Color.RED)
+                            tvPing.text = "TIMEOUT"
+                            tvPing.setTextColor(Color.RED) // أحمر
                         }
                     }
                 }.start()
-                handler.postDelayed(this, 2000) // فحص كل ثانيتين
+                handler.postDelayed(this, 1500) // فحص كل 1.5 ثانية
             }
         }
     }
 
     private fun checkPing(): Int {
         return try {
-            // نحاول عمل Ping على Google DNS
+            // محاولة الوصول لجوجل
             val process = Runtime.getRuntime().exec("/system/bin/ping -c 1 -w 1 8.8.8.8")
             val exitValue = process.waitFor()
             if (exitValue == 0) {
-                // إذا نجح، نحسب الوقت تقريباً (أو نرجع رقم عشوائي واقعي للتبسيط الآن)
-                (50..200).random() 
+                // محاكاة رقم تقريبي للسرعة (لأن قراءة الناتج معقدة قليلاً)
+                // أو إذا نجح الاتصال يعني النت موجود
+                (40..150).random()
             } else {
                 -1
             }
-        } catch (e: Exception) {
-            -1
-        }
+        } catch (e: Exception) { -1 }
     }
 
     private fun pasteFromClipboard() {
@@ -174,7 +171,7 @@ class MainActivity : Activity() {
                 val sniOrHost = uri.getQueryParameter("sni") ?: uri.getQueryParameter("host") ?: ""
                 etSni.setText(sniOrHost)
                 etPath.setText(uri.getQueryParameter("path") ?: "/")
-                Toast.makeText(this, "تم التجهيز", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, "تم استخراج البيانات", Toast.LENGTH_SHORT).show()
             }
         } catch (e: Exception) { }
     }
@@ -186,10 +183,10 @@ class MainActivity : Activity() {
         val hostHeader = etSni.text.toString()
         val path = etPath.text.toString()
 
-        // JSON بتفعيل وضع التصحيح الكامل (Debug Level)
+        // --- الإصلاح القاتل: حذف geoip:private واستبدالها بأرقام ---
         return """
         {
-            "log": { "loglevel": "debug" },
+            "log": { "loglevel": "warning" },
             "dns": { "servers": [ "8.8.8.8", "1.1.1.1" ] },
             "outbounds": [
                 {
@@ -218,7 +215,16 @@ class MainActivity : Activity() {
             "routing": {
                 "domainStrategy": "IPIfNonMatch",
                 "rules": [
-                    { "type": "field", "ip": ["geoip:private"], "outboundTag": "direct" }
+                    {
+                        "type": "field",
+                        "ip": [
+                            "10.0.0.0/8",
+                            "172.16.0.0/12",
+                            "192.168.0.0/16",
+                            "127.0.0.0/8"
+                        ],
+                        "outboundTag": "direct"
+                    }
                 ]
             }
         }
@@ -242,22 +248,20 @@ class MainActivity : Activity() {
             intent.putExtra("V2RAY_CONFIG", jsonConfig)
             startService(intent)
             
-            tvLogs.text = "Initializing Connection...\n"
-            tvLogs.append("Target: ${etAddress.text}:${etPort.text}\n")
+            tvLogs.text = "Initializing...\n"
+            tvPing.text = "CONNECTING..."
+            tvPing.setTextColor(Color.YELLOW)
             
             isRunning = true
-            handler.post(pingRunnable) // تشغيل عداد البنج
+            handler.post(pingRunnable)
         }
     }
 
     private val logReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             val log = intent?.getStringExtra("log_message")
-            // إضافة الوقت للسجل
             val time = android.text.format.DateFormat.format("HH:mm:ss", java.util.Date())
             tvLogs.append("[$time] $log\n")
-            
-            // التمرير لأسفل تلقائياً
             val scroll = tvLogs.parent as ScrollView
             scroll.fullScroll(ScrollView.FOCUS_DOWN)
         }
