@@ -28,20 +28,17 @@ class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // تصميم الواجهة
         val mainLayout = LinearLayout(this)
         mainLayout.orientation = LinearLayout.VERTICAL
         mainLayout.setPadding(30, 30, 30, 30)
         mainLayout.setBackgroundColor(Color.WHITE)
 
-        // زر اللصق
         val btnPaste = Button(this)
         btnPaste.text = "📋 لصق الكود (PASTE)"
         btnPaste.setBackgroundColor(Color.parseColor("#EEEEEE"))
         btnPaste.setOnClickListener { pasteFromClipboard() }
         mainLayout.addView(btnPaste)
 
-        // دالة لإنشاء الحقول
         fun createField(label: String, default: String = ""): EditText {
             val txt = TextView(this)
             txt.text = label
@@ -67,7 +64,6 @@ class MainActivity : Activity() {
         spacer.height = 50
         mainLayout.addView(spacer)
 
-        // زر الاتصال
         btnConnect = Button(this)
         btnConnect.text = "CONNECT"
         btnConnect.textSize = 18f
@@ -77,7 +73,6 @@ class MainActivity : Activity() {
         btnConnect.setOnClickListener { startVpn() }
         mainLayout.addView(btnConnect)
 
-        // السجلات
         val logLabel = TextView(this)
         logLabel.text = "Connection Logs:"
         logLabel.setPadding(0, 40, 0, 10)
@@ -124,7 +119,7 @@ class MainActivity : Activity() {
         }
     }
 
-    // --- التعديل هنا: إزالة geoip واستخدام الأرقام المباشرة ---
+    // --- التعديل الحاسم: إضافة DNS وإصلاح التوجيه ---
     private fun createJsonConfig(): String {
         val address = etAddress.text.toString()
         val port = etPort.text.toString().toIntOrNull() ?: 443
@@ -135,6 +130,12 @@ class MainActivity : Activity() {
         return """
         {
             "log": { "loglevel": "warning" },
+            "dns": {
+                "servers": [
+                    "8.8.8.8",
+                    "1.1.1.1"
+                ]
+            },
             "inbounds": [
                 {
                     "port": 10808,
