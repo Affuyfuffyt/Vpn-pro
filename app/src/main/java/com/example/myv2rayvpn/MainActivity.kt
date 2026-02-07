@@ -2,12 +2,10 @@ package com.example.myv2rayvpn
 
 import android.app.Activity
 import android.content.BroadcastReceiver
-import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.graphics.Color
-import android.net.Uri
 import android.net.VpnService
 import android.os.Build
 import android.os.Bundle
@@ -16,14 +14,13 @@ import androidx.annotation.RequiresApi
 
 class MainActivity : Activity() {
 
-    private lateinit var etAddress: EditText
+    private lateinit var etIp: EditText
     private lateinit var etPort: EditText
-    private lateinit var etUserId: EditText
-    private lateinit var etSni: EditText
-    private lateinit var etPath: EditText
+    private lateinit var etUser: EditText
+    private lateinit var etPass: EditText
     private lateinit var tvLogs: TextView
     private lateinit var btnConnect: Button
-    
+
     @RequiresApi(Build.VERSION_CODES.O)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -31,68 +28,57 @@ class MainActivity : Activity() {
         val mainLayout = LinearLayout(this)
         mainLayout.orientation = LinearLayout.VERTICAL
         mainLayout.setPadding(40, 40, 40, 40)
-        mainLayout.setBackgroundColor(Color.parseColor("#F5F5F5"))
+        mainLayout.setBackgroundColor(Color.WHITE)
 
-        // العنوان
         val title = TextView(this)
-        title.text = "Simple V2Ray (Proxy Mode)"
-        title.textSize = 22f
-        title.setTextColor(Color.BLACK)
+        title.text = "HTTP PROXY MODE"
+        title.textSize = 24f
+        title.setTextColor(Color.parseColor("#000000"))
         title.gravity = android.view.Gravity.CENTER
         mainLayout.addView(title)
 
-        // زر اللصق
-        val btnPaste = Button(this)
-        btnPaste.text = "📋 لصق كود VLESS"
-        btnPaste.setBackgroundColor(Color.LTGRAY)
-        btnPaste.setOnClickListener { pasteFromClipboard() }
-        mainLayout.addView(btnPaste)
-
-        // الحقول
-        fun createField(label: String, default: String = ""): EditText {
-            val txt = TextView(this)
-            txt.text = label
-            txt.setTextColor(Color.DKGRAY)
-            mainLayout.addView(txt)
+        fun createField(label: String, hint: String): EditText {
+            val tv = TextView(this)
+            tv.text = label
+            tv.setTextColor(Color.DKGRAY)
+            mainLayout.addView(tv)
             val edt = EditText(this)
-            edt.setText(default)
+            edt.hint = hint
             edt.setSingleLine()
             mainLayout.addView(edt)
             return edt
         }
 
-        etAddress = createField("IP Address (عنوان السيرفر)")
-        etPort = createField("Port (المنفذ - تأكد منه!)", "443")
-        etUserId = createField("UUID (كلمة السر)")
-        etSni = createField("SNI / Host (نطاق السيرفر)")
-        etPath = createField("Path (المسار)", "/")
+        // الحقول الأربعة المطلوبة
+        etIp = createField("Proxy IP (عنوان السيرفر)", "مثال: 192.168.1.1")
+        etPort = createField("Proxy Port (المنفذ)", "مثال: 8080")
+        etUser = createField("Username (اختياري)", "اسم المستخدم")
+        etPass = createField("Password (اختياري)", "كلمة السر")
 
         val spacer = TextView(this)
-        spacer.height = 40
+        spacer.height = 50
         mainLayout.addView(spacer)
 
-        // زر التشغيل
         btnConnect = Button(this)
-        btnConnect.text = "🔥 اتصال مباشر (بدون فلاتر)"
+        btnConnect.text = "🔗 اتصال (HTTP)"
         btnConnect.textSize = 18f
         btnConnect.setTextColor(Color.WHITE)
-        btnConnect.setBackgroundColor(Color.parseColor("#C62828")) // أحمر
-        btnConnect.minHeight = 160
+        btnConnect.setBackgroundColor(Color.parseColor("#FF5722")) // برتقالي
+        btnConnect.minHeight = 150
         btnConnect.setOnClickListener { startVpn() }
         mainLayout.addView(btnConnect)
 
-        // السجلات
         val logLabel = TextView(this)
-        logLabel.text = "سجل الأحداث:"
+        logLabel.text = "Socks/Http Logs:"
         mainLayout.addView(logLabel)
 
         val scroller = ScrollView(this)
         tvLogs = TextView(this)
         tvLogs.textSize = 12f
         tvLogs.setTextColor(Color.BLUE)
-        tvLogs.text = "بانتظار الإعدادات..."
+        tvLogs.text = "جاهز للاتصال..."
         scroller.addView(tvLogs)
-        val params = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 500)
+        val params = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 400)
         scroller.layoutParams = params
         mainLayout.addView(scroller)
 
@@ -100,40 +86,20 @@ class MainActivity : Activity() {
         registerReceiver(logReceiver, IntentFilter("VPN_LOG_UPDATE"), Context.RECEIVER_NOT_EXPORTED)
     }
 
-    private fun pasteFromClipboard() {
-        val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-        if (clipboard.primaryClip != null && clipboard.primaryClip!!.itemCount > 0) {
-            val pasteData = clipboard.primaryClip!!.getItemAt(0).text.toString().trim()
-            parseConfig(pasteData)
-        }
-    }
-
-    private fun parseConfig(conf: String) {
-        try {
-            if (conf.startsWith("vless://")) {
-                val uri = Uri.parse(conf)
-                etUserId.setText(uri.userInfo)
-                etAddress.setText(uri.host)
-                etPort.setText(uri.port.toString()) // سينسخ البورت من الكود
-                val sniOrHost = uri.getQueryParameter("sni") ?: uri.getQueryParameter("host") ?: ""
-                etSni.setText(sniOrHost)
-                etPath.setText(uri.getQueryParameter("path") ?: "/")
-                Toast.makeText(this, "تم نسخ الكود! تأكد من الأرقام", Toast.LENGTH_LONG).show()
-            }
-        } catch (e: Exception) {
-            Toast.makeText(this, "كود غير صالح", Toast.LENGTH_SHORT).show()
-        }
-    }
-
-    // --- JSON "الأنبوب الفارغ" ---
-    // لا يوجد routing، لا يوجد dns محلي، كل شيء يذهب للسيرفر
     private fun createJsonConfig(): String {
-        val address = etAddress.text.toString().trim()
-        val port = etPort.text.toString().toIntOrNull() ?: 443
-        val uuid = etUserId.text.toString().trim()
-        val hostHeader = etSni.text.toString().trim()
-        val path = etPath.text.toString().trim()
+        val ip = etIp.text.toString().trim()
+        val port = etPort.text.toString().toIntOrNull() ?: 8080
+        val user = etUser.text.toString().trim()
+        val pass = etPass.text.toString().trim()
 
+        // بناء إعدادات المستخدم (إذا وجد)
+        val userSection = if (user.isNotEmpty() && pass.isNotEmpty()) {
+            """ "users": [ { "user": "$user", "pass": "$pass" } ] """
+        } else {
+            """ "users": [] """
+        }
+
+        // هذا كود JSON خاص ببروتوكول HTTP فقط
         return """
         {
             "log": { "loglevel": "warning" },
@@ -145,38 +111,36 @@ class MainActivity : Activity() {
                         "enabled": true,
                         "destOverride": ["http", "tls"]
                     },
-                    "settings": {
-                        "auth": "noauth",
-                        "udp": true
-                    }
+                    "settings": { "auth": "noauth", "udp": true }
                 }
             ],
             "outbounds": [
                 {
-                    "protocol": "vless",
+                    "tag": "proxy",
+                    "protocol": "http", 
                     "settings": {
-                        "vnext": [
+                        "servers": [
                             {
-                                "address": "$address",
+                                "address": "$ip",
                                 "port": $port,
-                                "users": [ { "id": "$uuid", "encryption": "none" } ]
+                                $userSection
                             }
                         ]
-                    },
-                    "streamSettings": {
-                        "network": "ws",
-                        "security": "none",
-                        "wsSettings": {
-                            "path": "$path",
-                            "headers": { "Host": "$hostHeader" }
-                        }
                     }
-                }
-            ]
+                },
+                { "tag": "direct", "protocol": "freedom", "settings": {} }
+            ],
+            "routing": {
+                "domainStrategy": "AsIs",
+                "rules": [
+                    { "type": "field", "outboundTag": "proxy", "port": "0-65535" }
+                ]
+            },
+            "dns": { "servers": ["8.8.8.8", "1.1.1.1"] }
         }
         """.trimIndent()
     }
-    // ملاحظة: عندما نحذف قسم routing، المحرك يرسل كل شيء لأول outbound تلقائياً.
+    // لاحظ: protocol: "http" بدلاً من "vless"
 
     private fun startVpn() {
         val intent = VpnService.prepare(this)
@@ -194,7 +158,7 @@ class MainActivity : Activity() {
             intent.action = "START_VPN"
             intent.putExtra("V2RAY_CONFIG", jsonConfig)
             startService(intent)
-            tvLogs.text = "جاري الاتصال بالسيرفر $etAddress:$etPort..."
+            tvLogs.text = "جاري الاتصال بـ ${etIp.text}..."
         }
     }
 
@@ -202,7 +166,6 @@ class MainActivity : Activity() {
         override fun onReceive(context: Context?, intent: Intent?) {
             val log = intent?.getStringExtra("log_message")
             tvLogs.append("\n$log")
-            // تمرير تلقائي للأسفل
             val scroll = tvLogs.parent as ScrollView
             scroll.fullScroll(ScrollView.FOCUS_DOWN)
         }
