@@ -28,34 +28,30 @@ class MyVpnService : VpnService() {
     private fun startV2Ray(config: String) {
         try {
             val builder = Builder()
-            builder.setSession("HTTP Proxy VPN")
+            builder.setSession("HTTP Proxy App")
             builder.addAddress("10.0.0.2", 24)
             builder.addRoute("0.0.0.0", 0)
             builder.setMtu(1500)
-            builder.addDnsServer("8.8.8.8") // مهم جداً للـ HTTP
+            builder.addDnsServer("8.8.8.8")
             
             vpnInterface = builder.establish()
-            
             if (vpnInterface == null) {
-                sendLog("فشل إنشاء واجهة الـ VPN")
+                sendLog("❌ فشل إنشاء الـ VPN")
                 return
             }
-            
-            val fd = vpnInterface!!.fd
+            sendLog("✅ تم إنشاء واجهة الـ VPN")
 
             val callback = object : CoreCallbackHandler {
-                override fun onEmitStatus(p0: Long, p1: String?): Long { 
-                    return 0 
-                }
+                override fun onEmitStatus(p0: Long, p1: String?): Long { return 0 }
                 override fun shutdown(): Long { return 0 }
                 override fun startup(): Long { 
-                    sendLog("تم تشغيل المحرك (HTTP Mode)")
+                    sendLog("✅ المحرك يعمل (HTTP Mode)")
                     return 0 
                 }
             }
 
             coreController = Libv2ray.newCoreController(callback)
-            coreController?.startLoop(config, fd)
+            coreController?.startLoop(config, vpnInterface!!.fd)
 
         } catch (e: Exception) {
             e.printStackTrace()
@@ -68,6 +64,7 @@ class MyVpnService : VpnService() {
         try {
             coreController?.stopLoop()
             vpnInterface?.close()
+            sendLog("🛑 توقفت الخدمة")
         } catch (e: Exception) { }
     }
     
