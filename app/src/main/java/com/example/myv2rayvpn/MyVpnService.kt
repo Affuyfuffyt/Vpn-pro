@@ -1,81 +1,176 @@
 package com.example.myv2rayvpn
 
+import android.app.Activity
+import android.content.BroadcastReceiver
+import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
+import android.graphics.Color
 import android.net.VpnService
-import android.os.ParcelFileDescriptor
-import libv2ray.Libv2ray
-import libv2ray.CoreCallbackHandler
-import libv2ray.CoreController
+import android.os.Build
+import android.os.Bundle
+import android.widget.*
+import androidx.annotation.RequiresApi
 
-class MyVpnService : VpnService() {
+class MainActivity : Activity() {
 
-    private var vpnInterface: ParcelFileDescriptor? = null
-    companion object {
-        var coreController: CoreController? = null
-    }
+    private lateinit var etIp: EditText
+    private lateinit var etPort: EditText
+    private lateinit var etUser: EditText
+    private lateinit var etPass: EditText
+    private lateinit var tvLogs: TextView
+    private lateinit var btnConnect: Button
 
-    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        if (intent?.action == "START_VPN") {
-            val config = intent.getStringExtra("V2RAY_CONFIG")
-            if (config != null) {
-                stopV2Ray()
-                Thread { startV2Ray(config) }.start()
-            }
+    @RequiresApi(Build.VERSION_CODES.O)
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        
+        val mainLayout = LinearLayout(this)
+        mainLayout.orientation = LinearLayout.VERTICAL
+        mainLayout.setPadding(30, 30, 30, 30)
+        mainLayout.setBackgroundColor(Color.WHITE)
+
+        val title = TextView(this)
+        title.text = "HTTP PROXY MODE"
+        title.textSize = 24f
+        title.setTextColor(Color.BLACK)
+        title.gravity = android.view.Gravity.CENTER
+        mainLayout.addView(title)
+
+        fun createField(label: String, hint: String): EditText {
+            val txt = TextView(this)
+            txt.text = label
+            txt.setTextColor(Color.DKGRAY)
+            mainLayout.addView(txt)
+            val edt = EditText(this)
+            edt.hint = hint
+            edt.setSingleLine()
+            mainLayout.addView(edt)
+            return edt
         }
-        return START_STICKY
+
+        // الحقول الأربعة
+        etIp = createField("Proxy IP (عنوان السيرفر)", "مثال: 192.168.1.1")
+        etPort = createField("Proxy Port (المنفذ)", "مثال: 8080")
+        etUser = createField("Username (اختياري)", "User")
+        etPass = createField("Password (اختياري)", "Pass")
+
+        val spacer = TextView(this)
+        spacer.height = 40
+        mainLayout.addView(spacer)
+
+        btnConnect = Button(this)
+        btnConnect.text = "🔗 اتصال (HTTP)"
+        btnConnect.textSize = 18f
+        btnConnect.setTextColor(Color.WHITE)
+        btnConnect.setBackgroundColor(Color.parseColor("#E65100")) 
+        btnConnect.minHeight = 150
+        btnConnect.setOnClickListener { startVpn() }
+        mainLayout.addView(btnConnect)
+
+        val logLabel = TextView(this)
+        logLabel.text = "السجلات:"
+        mainLayout.addView(logLabel)
+
+        val scroller = ScrollView(this)
+        tvLogs = TextView(this)
+        tvLogs.textSize = 12f
+        tvLogs.setTextColor(Color.BLUE)
+        tvLogs.text = "بانتظار الإدخال..."
+        scroller.addView(tvLogs)
+        val params = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 500)
+        scroller.layoutParams = params
+        mainLayout.addView(scroller)
+
+        setContentView(mainLayout)
+        registerReceiver(logReceiver, IntentFilter("VPN_LOG_UPDATE"), Context.RECEIVER_NOT_EXPORTED)
     }
 
-    private fun startV2Ray(config: String) {
-        try {
-            val builder = Builder()
-            builder.setSession("HTTP Proxy App")
-            builder.addAddress("10.0.0.2", 24)
-            builder.addRoute("0.0.0.0", 0)
-            builder.setMtu(1500)
-            builder.addDnsServer("8.8.8.8")
-            
-            vpnInterface = builder.establish()
-            if (vpnInterface == null) {
-                sendLog("❌ فشل إنشاء الـ VPN")
-                return
-            }
-            sendLog("✅ تم إنشاء واجهة الـ VPN")
+    private fun createJsonConfig(): String {
+        val ip = etIp.text.toString().trim()
+        val port = etPort.text.toString().toIntOrNull() ?: 8080
+        val user = etUser.text.toString().trim()
+        val pass = etPass.text.toString().trim()
 
-            val callback = object : CoreCallbackHandler {
-                override fun onEmitStatus(p0: Long, p1: String?): Long { return 0 }
-                override fun shutdown(): Long { return 0 }
-                override fun startup(): Long { 
-                    sendLog("✅ المحرك يعمل (HTTP Mode)")
-                    return 0 
+        val userConfig = if (user.isNotEmpty() && pass.isNotEmpty()) {
+            """ "users": [ { "user": "$user", "pass": "$pass" } ] """
+        } else {
+            """ "users": [] """
+        }
+
+        // إعدادات HTTP Proxy
+        return """
+        {
+            "log": { "loglevel": "warning" },
+            "inbounds": [
+                {
+                    "port": 10808,
+                    "protocol": "socks",
+                    "sniffing": {
+                        "enabled": true,
+                        "destOverride": ["http", "tls"]
+                    },
+                    "settings": { "auth": "noauth", "udp": true }
                 }
-            }
+            ],
+            "outbounds": [
+                {
+                    "tag": "proxy",
+                    "protocol": "http",
+                    "settings": {
+                        "servers": [
+                            {
+                                "address": "$ip",
+                                "port": $port,
+                                $userConfig
+                            }
+                        ]
+                    }
+                },
+                { "tag": "direct", "protocol": "freedom", "settings": {} }
+            ],
+            "routing": {
+                "domainStrategy": "AsIs",
+                "rules": [
+                    { "type": "field", "outboundTag": "proxy", "port": "0-65535" }
+                ]
+            },
+            "dns": { "servers": ["8.8.8.8"] }
+        }
+        """.trimIndent()
+    }
 
-            coreController = Libv2ray.newCoreController(callback)
-            coreController?.startLoop(config, vpnInterface!!.fd)
-
-        } catch (e: Exception) {
-            e.printStackTrace()
-            sendLog("خطأ: ${e.message}")
-            stopV2Ray()
+    private fun startVpn() {
+        val intent = VpnService.prepare(this)
+        if (intent != null) {
+            startActivityForResult(intent, 1)
+        } else {
+            onActivityResult(1, Activity.RESULT_OK, null)
         }
     }
 
-    private fun stopV2Ray() {
-        try {
-            coreController?.stopLoop()
-            vpnInterface?.close()
-        } catch (e: Exception) { }
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        if (resultCode == Activity.RESULT_OK) {
+            val jsonConfig = createJsonConfig()
+            val intent = Intent(this, MyVpnService::class.java)
+            intent.action = "START_VPN"
+            intent.putExtra("V2RAY_CONFIG", jsonConfig)
+            startService(intent)
+            tvLogs.text = "جاري الاتصال بـ HTTP Proxy..."
+        }
+    }
+
+    private val logReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            val log = intent?.getStringExtra("log_message")
+            tvLogs.append("\n$log")
+            val scroll = tvLogs.parent as ScrollView
+            scroll.fullScroll(ScrollView.FOCUS_DOWN)
+        }
     }
     
-    private fun sendLog(msg: String) {
-        val intent = Intent("VPN_LOG_UPDATE")
-        intent.putExtra("log_message", msg)
-        intent.setPackage(packageName)
-        sendBroadcast(intent)
-    }
-
     override fun onDestroy() {
         super.onDestroy()
-        stopV2Ray()
+        unregisterReceiver(logReceiver)
     }
 }
