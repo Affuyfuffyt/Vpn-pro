@@ -27,48 +27,39 @@ class MyVpnService : VpnService() {
 
     private fun startV2Ray(config: String) {
         try {
-            sendLog("🚀 Starting VPN Builder...")
-            
             val builder = Builder()
-            builder.setSession("V2Ray Pro")
+            builder.setSession("HTTP Proxy VPN")
             builder.addAddress("10.0.0.2", 24)
             builder.addRoute("0.0.0.0", 0)
-            builder.setMtu(1280) // حجم حزمة آمن
-            builder.addDnsServer("8.8.8.8")
-            
-            try {
-                builder.addDisallowedApplication(packageName)
-                sendLog("✅ App excluded to prevent loops")
-            } catch (e: Exception) {
-                sendLog("⚠️ Loop prevention failed: ${e.message}")
-            }
+            builder.setMtu(1500)
+            builder.addDnsServer("8.8.8.8") // مهم جداً للـ HTTP
             
             vpnInterface = builder.establish()
+            
             if (vpnInterface == null) {
-                sendLog("❌ ERROR: Failed to create Interface!")
+                sendLog("فشل إنشاء واجهة الـ VPN")
                 return
             }
-            sendLog("✅ VPN Interface Created (FD: ${vpnInterface!!.fd})")
+            
+            val fd = vpnInterface!!.fd
 
             val callback = object : CoreCallbackHandler {
                 override fun onEmitStatus(p0: Long, p1: String?): Long { 
-                    // إرسال رسائل النظام للشاشة السوداء
-                    if (p1 != null) sendLog("CORE: $p1") 
                     return 0 
                 }
-                override fun shutdown(): Long { sendLog("🔻 Core Shutdown"); return 0 }
-                override fun startup(): Long { sendLog("✅ Core Started Successfully!"); return 0 }
+                override fun shutdown(): Long { return 0 }
+                override fun startup(): Long { 
+                    sendLog("تم تشغيل المحرك (HTTP Mode)")
+                    return 0 
+                }
             }
 
-            sendLog("⚙️ Initializing LibV2Ray...")
             coreController = Libv2ray.newCoreController(callback)
-            
-            // بدء العمل
-            coreController?.startLoop(config, vpnInterface!!.fd)
+            coreController?.startLoop(config, fd)
 
         } catch (e: Exception) {
-            sendLog("❌ CRITICAL ERROR: ${e.message}")
             e.printStackTrace()
+            sendLog("خطأ: ${e.message}")
             stopV2Ray()
         }
     }
@@ -77,7 +68,6 @@ class MyVpnService : VpnService() {
         try {
             coreController?.stopLoop()
             vpnInterface?.close()
-            sendLog("🛑 VPN Service Stopped")
         } catch (e: Exception) { }
     }
     
