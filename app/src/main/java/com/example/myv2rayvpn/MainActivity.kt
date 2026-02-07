@@ -14,10 +14,11 @@ import androidx.annotation.RequiresApi
 
 class MainActivity : Activity() {
 
-    private lateinit var etIp: EditText
+    private lateinit var etAddress: EditText
     private lateinit var etPort: EditText
-    private lateinit var etUser: EditText
-    private lateinit var etPass: EditText
+    private lateinit var etUserId: EditText
+    private lateinit var etSni: EditText
+    private lateinit var etPath: EditText
     private lateinit var tvLogs: TextView
     private lateinit var btnConnect: Button
 
@@ -31,38 +32,40 @@ class MainActivity : Activity() {
         mainLayout.setBackgroundColor(Color.WHITE)
 
         val title = TextView(this)
-        title.text = "HTTP PROXY (UDP FIX)"
+        title.text = "VLESS (DNS FIX)"
         title.textSize = 22f
         title.setTextColor(Color.BLACK)
         title.gravity = android.view.Gravity.CENTER
         mainLayout.addView(title)
 
-        fun createField(label: String, hint: String): EditText {
+        // حقول الإدخال
+        fun createField(label: String, default: String): EditText {
             val txt = TextView(this)
             txt.text = label
             txt.setTextColor(Color.DKGRAY)
             mainLayout.addView(txt)
             val edt = EditText(this)
-            edt.hint = hint
+            edt.setText(default)
             edt.setSingleLine()
             mainLayout.addView(edt)
             return edt
         }
 
-        etIp = createField("Proxy IP", "e.g. 46.101.111.165")
-        etPort = createField("Proxy Port", "e.g. 8080")
-        etUser = createField("Username", "")
-        etPass = createField("Password", "")
+        etAddress = createField("IP Address", "")
+        etPort = createField("Port", "80")
+        etUserId = createField("UUID", "")
+        etSni = createField("Host / SNI", "")
+        etPath = createField("Path", "/")
 
         val spacer = TextView(this)
         spacer.height = 40
         mainLayout.addView(spacer)
 
         btnConnect = Button(this)
-        btnConnect.text = "🚀 اتصال (مع إصلاح DNS)"
+        btnConnect.text = "🔥 اتصال (VLESS + DNS Bypass)"
         btnConnect.textSize = 18f
         btnConnect.setTextColor(Color.WHITE)
-        btnConnect.setBackgroundColor(Color.parseColor("#43A047")) // أخضر
+        btnConnect.setBackgroundColor(Color.parseColor("#1565C0")) // أزرق
         btnConnect.minHeight = 150
         btnConnect.setOnClickListener { startVpn() }
         mainLayout.addView(btnConnect)
@@ -74,7 +77,7 @@ class MainActivity : Activity() {
         val scroller = ScrollView(this)
         tvLogs = TextView(this)
         tvLogs.textSize = 12f
-        tvLogs.setTextColor(Color.BLUE)
+        tvLogs.setTextColor(Color.DKGRAY)
         tvLogs.text = "جاهز..."
         scroller.addView(tvLogs)
         val params = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 500)
@@ -85,18 +88,13 @@ class MainActivity : Activity() {
         registerReceiver(logReceiver, IntentFilter("VPN_LOG_UPDATE"), Context.RECEIVER_NOT_EXPORTED)
     }
 
-    // --- JSON الذكي (TCP للبروكسي / UDP مباشر) ---
+    // --- هذا هو الـ JSON السحري ---
     private fun createJsonConfig(): String {
-        val ip = etIp.text.toString().trim()
-        val port = etPort.text.toString().toIntOrNull() ?: 8080
-        val user = etUser.text.toString().trim()
-        val pass = etPass.text.toString().trim()
-
-        val userConfig = if (user.isNotEmpty() && pass.isNotEmpty()) {
-            """ "users": [ { "user": "$user", "pass": "$pass" } ] """
-        } else {
-            """ "users": [] """
-        }
+        val address = etAddress.text.toString().trim()
+        val port = etPort.text.toString().toIntOrNull() ?: 80
+        val uuid = etUserId.text.toString().trim()
+        val hostHeader = etSni.text.toString().trim()
+        val path = etPath.text.toString().trim()
 
         return """
         {
@@ -115,16 +113,25 @@ class MainActivity : Activity() {
             "outbounds": [
                 {
                     "tag": "proxy",
-                    "protocol": "http",
+                    "protocol": "vless",
                     "settings": {
-                        "servers": [
+                        "vnext": [
                             {
-                                "address": "$ip",
+                                "address": "$address",
                                 "port": $port,
-                                $userConfig
+                                "users": [ { "id": "$uuid", "encryption": "none" } ]
                             }
                         ]
-                    }
+                    },
+                    "streamSettings": {
+                        "network": "ws",
+                        "security": "none",
+                        "wsSettings": {
+                            "path": "$path",
+                            "headers": { "Host": "$hostHeader" }
+                        }
+                    },
+                    "mux": { "enabled": false }
                 },
                 {
                     "tag": "direct",
@@ -132,14 +139,12 @@ class MainActivity : Activity() {
                     "settings": {}
                 }
             ],
+            "dns": {
+                "servers": [ "8.8.8.8", "1.1.1.1" ]
+            },
             "routing": {
                 "domainStrategy": "AsIs",
                 "rules": [
-                    {
-                        "type": "field",
-                        "network": "udp",
-                        "outboundTag": "direct"
-                    },
                     {
                         "type": "field",
                         "port": "53",
@@ -147,17 +152,23 @@ class MainActivity : Activity() {
                     },
                     {
                         "type": "field",
-                        "network": "tcp",
+                        "protocol": ["dns"],
+                        "outboundTag": "direct"
+                    },
+                    {
+                        "type": "field",
+                        "port": "0-65535",
                         "outboundTag": "proxy"
                     }
                 ]
-            },
-            "dns": {
-                "servers": [ "8.8.8.8", "1.1.1.1" ]
             }
         }
         """.trimIndent()
     }
+    // الشرح: القواعد في routing تقول:
+    // 1. أي شيء على بورت 53 (DNS) -> اذهب direct (للإنترنت العادي) عشان نعرف اسم الموقع.
+    // 2. أي شيء آخر -> اذهب proxy (للسيرفر) عشان نفتح الموقع.
+    // هذا يحل مشكلة "متصل بدون نت".
 
     private fun startVpn() {
         val intent = VpnService.prepare(this)
@@ -175,7 +186,7 @@ class MainActivity : Activity() {
             intent.action = "START_VPN"
             intent.putExtra("V2RAY_CONFIG", jsonConfig)
             startService(intent)
-            tvLogs.text = "جاري الاتصال بـ $etIp (TCP Mode)..."
+            tvLogs.text = "جاري الاتصال بـ $etAddress..."
         }
     }
 
