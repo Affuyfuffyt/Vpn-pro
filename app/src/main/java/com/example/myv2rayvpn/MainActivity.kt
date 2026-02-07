@@ -11,13 +11,8 @@ import android.net.Uri
 import android.net.VpnService
 import android.os.Build
 import android.os.Bundle
-import android.os.Handler
-import android.os.Looper
-import android.os.StrictMode
 import android.widget.*
 import androidx.annotation.RequiresApi
-import java.net.URL
-import javax.net.ssl.HttpsURLConnection
 
 class MainActivity : Activity() {
 
@@ -35,61 +30,69 @@ class MainActivity : Activity() {
         
         val mainLayout = LinearLayout(this)
         mainLayout.orientation = LinearLayout.VERTICAL
-        mainLayout.setPadding(30, 30, 30, 30)
-        mainLayout.setBackgroundColor(Color.WHITE)
+        mainLayout.setPadding(40, 40, 40, 40)
+        mainLayout.setBackgroundColor(Color.parseColor("#F5F5F5"))
 
+        // العنوان
         val title = TextView(this)
-        title.text = "V2RAY FINAL FIX"
-        title.textSize = 20f
+        title.text = "Simple V2Ray (Proxy Mode)"
+        title.textSize = 22f
         title.setTextColor(Color.BLACK)
         title.gravity = android.view.Gravity.CENTER
         mainLayout.addView(title)
 
+        // زر اللصق
         val btnPaste = Button(this)
-        btnPaste.text = "📋 لصق الإعدادات (PASTE)"
+        btnPaste.text = "📋 لصق كود VLESS"
+        btnPaste.setBackgroundColor(Color.LTGRAY)
         btnPaste.setOnClickListener { pasteFromClipboard() }
         mainLayout.addView(btnPaste)
 
+        // الحقول
         fun createField(label: String, default: String = ""): EditText {
             val txt = TextView(this)
-            txt.text = label; txt.textSize = 12f; txt.setTextColor(Color.DKGRAY)
+            txt.text = label
+            txt.setTextColor(Color.DKGRAY)
             mainLayout.addView(txt)
             val edt = EditText(this)
-            edt.textSize = 14f; edt.setText(default); edt.setSingleLine()
+            edt.setText(default)
+            edt.setSingleLine()
             mainLayout.addView(edt)
             return edt
         }
 
-        etAddress = createField("IP / Address", "")
-        etPort = createField("Port", "80")
-        etUserId = createField("UUID", "")
-        etSni = createField("SNI / Host", "")
-        etPath = createField("Path", "/")
+        etAddress = createField("IP Address (عنوان السيرفر)")
+        etPort = createField("Port (المنفذ - تأكد منه!)", "443")
+        etUserId = createField("UUID (كلمة السر)")
+        etSni = createField("SNI / Host (نطاق السيرفر)")
+        etPath = createField("Path (المسار)", "/")
 
         val spacer = TextView(this)
-        spacer.height = 30
+        spacer.height = 40
         mainLayout.addView(spacer)
 
+        // زر التشغيل
         btnConnect = Button(this)
-        btnConnect.text = "🚀 اتصال (بدون أخطاء)"
-        btnConnect.textSize = 16f
+        btnConnect.text = "🔥 اتصال مباشر (بدون فلاتر)"
+        btnConnect.textSize = 18f
         btnConnect.setTextColor(Color.WHITE)
-        btnConnect.setBackgroundColor(Color.parseColor("#1A237E")) 
-        btnConnect.minHeight = 150
+        btnConnect.setBackgroundColor(Color.parseColor("#C62828")) // أحمر
+        btnConnect.minHeight = 160
         btnConnect.setOnClickListener { startVpn() }
         mainLayout.addView(btnConnect)
 
+        // السجلات
         val logLabel = TextView(this)
-        logLabel.text = "Logs:"
+        logLabel.text = "سجل الأحداث:"
         mainLayout.addView(logLabel)
 
         val scroller = ScrollView(this)
         tvLogs = TextView(this)
-        tvLogs.textSize = 10f
-        tvLogs.setTextColor(Color.DKGRAY)
-        tvLogs.text = "جاهز..."
+        tvLogs.textSize = 12f
+        tvLogs.setTextColor(Color.BLUE)
+        tvLogs.text = "بانتظار الإعدادات..."
         scroller.addView(tvLogs)
-        val params = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 400)
+        val params = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 500)
         scroller.layoutParams = params
         mainLayout.addView(scroller)
 
@@ -111,23 +114,26 @@ class MainActivity : Activity() {
                 val uri = Uri.parse(conf)
                 etUserId.setText(uri.userInfo)
                 etAddress.setText(uri.host)
-                etPort.setText(uri.port.toString())
+                etPort.setText(uri.port.toString()) // سينسخ البورت من الكود
                 val sniOrHost = uri.getQueryParameter("sni") ?: uri.getQueryParameter("host") ?: ""
                 etSni.setText(sniOrHost)
                 etPath.setText(uri.getQueryParameter("path") ?: "/")
-                Toast.makeText(this, "تم الإعداد", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, "تم نسخ الكود! تأكد من الأرقام", Toast.LENGTH_LONG).show()
             }
-        } catch (e: Exception) { }
+        } catch (e: Exception) {
+            Toast.makeText(this, "كود غير صالح", Toast.LENGTH_SHORT).show()
+        }
     }
 
+    // --- JSON "الأنبوب الفارغ" ---
+    // لا يوجد routing، لا يوجد dns محلي، كل شيء يذهب للسيرفر
     private fun createJsonConfig(): String {
-        val address = etAddress.text.toString()
-        val port = etPort.text.toString().toIntOrNull() ?: 80
-        val uuid = etUserId.text.toString()
-        val hostHeader = etSni.text.toString()
-        val path = etPath.text.toString()
+        val address = etAddress.text.toString().trim()
+        val port = etPort.text.toString().toIntOrNull() ?: 443
+        val uuid = etUserId.text.toString().trim()
+        val hostHeader = etSni.text.toString().trim()
+        val path = etPath.text.toString().trim()
 
-        // --- هنا الإصلاح: حذف geoip واستبداله بأرقام ---
         return """
         {
             "log": { "loglevel": "warning" },
@@ -147,7 +153,6 @@ class MainActivity : Activity() {
             ],
             "outbounds": [
                 {
-                    "tag": "proxy",
                     "protocol": "vless",
                     "settings": {
                         "vnext": [
@@ -165,33 +170,13 @@ class MainActivity : Activity() {
                             "path": "$path",
                             "headers": { "Host": "$hostHeader" }
                         }
-                    },
-                    "mux": { "enabled": false, "concurrency": -1 }
-                },
-                { "tag": "direct", "protocol": "freedom", "settings": {} }
-            ],
-            "dns": {
-                "servers": [ "8.8.8.8", "1.1.1.1" ]
-            },
-            "routing": {
-                "domainStrategy": "AsIs",
-                "rules": [
-                    { 
-                        "type": "field", 
-                        "outboundTag": "direct", 
-                        "ip": [ "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "127.0.0.0/8" ] 
-                    },
-                    { 
-                        "type": "field", 
-                        "outboundTag": "proxy", 
-                        "port": "0-65535" 
-                    } 
-                ]
-            }
+                    }
+                }
+            ]
         }
         """.trimIndent()
-        // لاحظ في قسم rules: لا يوجد كلمة geoip نهائياً.
     }
+    // ملاحظة: عندما نحذف قسم routing، المحرك يرسل كل شيء لأول outbound تلقائياً.
 
     private fun startVpn() {
         val intent = VpnService.prepare(this)
@@ -209,7 +194,7 @@ class MainActivity : Activity() {
             intent.action = "START_VPN"
             intent.putExtra("V2RAY_CONFIG", jsonConfig)
             startService(intent)
-            tvLogs.text = "تم الاتصال.. (تم إزالة geoip)"
+            tvLogs.text = "جاري الاتصال بالسيرفر $etAddress:$etPort..."
         }
     }
 
@@ -217,6 +202,7 @@ class MainActivity : Activity() {
         override fun onReceive(context: Context?, intent: Intent?) {
             val log = intent?.getStringExtra("log_message")
             tvLogs.append("\n$log")
+            // تمرير تلقائي للأسفل
             val scroll = tvLogs.parent as ScrollView
             scroll.fullScroll(ScrollView.FOCUS_DOWN)
         }
