@@ -158,9 +158,6 @@ class MainActivity : Activity() {
         }
         """.trimIndent()
     }
-    // الشرح:
-    // 1. rule udp -> direct: يحل مشكلة أن البروكسي لا يدعم UDP.
-    // 2. rule tcp -> proxy: يجبر التصفح على المرور من البروكسي.
 
     private fun startVpn() {
         val intent = VpnService.prepare(this)
