@@ -64,7 +64,6 @@ class MyVpnService : VpnService() {
         try {
             coreController?.stopLoop()
             vpnInterface?.close()
-            sendLog("🛑 توقفت الخدمة")
         } catch (e: Exception) { }
     }
     
