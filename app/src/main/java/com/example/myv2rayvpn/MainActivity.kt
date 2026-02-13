@@ -11,8 +11,6 @@ import android.net.Uri
 import android.net.VpnService
 import android.os.Build
 import android.os.Bundle
-import android.os.Handler
-import android.os.Looper
 import android.view.Gravity
 import android.widget.*
 import androidx.annotation.RequiresApi
@@ -25,9 +23,8 @@ class MainActivity : Activity() {
     private lateinit var etSni: EditText
     private lateinit var etPath: EditText
     
-    // متغيرات العرض الجديدة
-    private lateinit var tvStatus: TextView // لعرض الخطوات (Connecting...)
-    private lateinit var tvError: TextView  // لعرض الأخطاء (Error: ...)
+    private lateinit var tvStatus: TextView
+    private lateinit var tvError: TextView
     private lateinit var btnConnect: Button
     private lateinit var progressBar: ProgressBar
 
@@ -40,45 +37,37 @@ class MainActivity : Activity() {
         mainLayout.setPadding(40, 40, 40, 40)
         mainLayout.setBackgroundColor(Color.WHITE)
 
-        // --- منطقة الحالة (Status Area) ---
         val statusContainer = LinearLayout(this)
         statusContainer.orientation = LinearLayout.VERTICAL
         statusContainer.setPadding(20, 40, 20, 40)
         statusContainer.setBackgroundColor(Color.parseColor("#F5F5F5"))
         statusContainer.gravity = Gravity.CENTER
 
-        // دائرة التحميل
         progressBar = ProgressBar(this)
         progressBar.visibility = ProgressBar.INVISIBLE
         statusContainer.addView(progressBar)
 
-        // نص الخطوات (Notations)
         tvStatus = TextView(this)
-        tvStatus.text = "Ready to Connect"
+        tvStatus.text = "Ready"
         tvStatus.textSize = 18f
-        tvStatus.setTextColor(Color.parseColor("#1565C0")) // أزرق
+        tvStatus.setTextColor(Color.parseColor("#1565C0"))
         tvStatus.gravity = Gravity.CENTER
-        tvStatus.setPadding(0, 20, 0, 0)
         statusContainer.addView(tvStatus)
 
-        // نص الأخطاء (Errors)
         tvError = TextView(this)
         tvError.text = ""
         tvError.textSize = 14f
-        tvError.setTextColor(Color.RED) // أحمر
+        tvError.setTextColor(Color.RED)
         tvError.gravity = Gravity.CENTER
-        tvError.setPadding(0, 10, 0, 0)
         statusContainer.addView(tvError)
 
         mainLayout.addView(statusContainer)
 
-        // زر اللصق
         val btnPaste = Button(this)
         btnPaste.text = "📋 لصق كود VLESS"
         btnPaste.setOnClickListener { pasteFromClipboard() }
         mainLayout.addView(btnPaste)
 
-        // الحقول
         fun createField(label: String, default: String): EditText {
             val txt = TextView(this)
             txt.text = label; txt.textSize = 12f; txt.setTextColor(Color.DKGRAY)
@@ -90,9 +79,9 @@ class MainActivity : Activity() {
         }
 
         etAddress = createField("IP Address", "")
-        etPort = createField("Port", "81") // الطلب: بورت 81 افتراضياً
+        etPort = createField("Port", "81")
         etUserId = createField("UUID", "")
-        etSni = createField("Host / SNI", "")
+        etSni = createField("Host / SNI (اتركه فارغاً إذا لم يوجد)", "")
         etPath = createField("Path (WS)", "/")
 
         val spacer = TextView(this)
@@ -100,7 +89,7 @@ class MainActivity : Activity() {
         mainLayout.addView(spacer)
 
         btnConnect = Button(this)
-        btnConnect.text = "START CONNECTION"
+        btnConnect.text = "START CONNECTION 🚀"
         btnConnect.textSize = 16f
         btnConnect.setTextColor(Color.WHITE)
         btnConnect.setBackgroundColor(Color.parseColor("#2E7D32"))
@@ -110,10 +99,9 @@ class MainActivity : Activity() {
 
         setContentView(mainLayout)
 
-        // تسجيل مستقبل الرسائل من الخدمة
         val filter = IntentFilter()
-        filter.addAction("VPN_STATUS_UPDATE") // لتحديث الخطوات
-        filter.addAction("VPN_ERROR_REPORT")  // لتحديث الأخطاء
+        filter.addAction("VPN_STATUS_UPDATE")
+        filter.addAction("VPN_ERROR_REPORT")
         registerReceiver(statusReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
     }
 
@@ -135,18 +123,34 @@ class MainActivity : Activity() {
                 val sniOrHost = uri.getQueryParameter("sni") ?: uri.getQueryParameter("host") ?: ""
                 etSni.setText(sniOrHost)
                 etPath.setText(uri.getQueryParameter("path") ?: "/")
-                Toast.makeText(this, "تم نسخ الإعدادات", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, "تم النسخ", Toast.LENGTH_SHORT).show()
             }
         } catch (e: Exception) { }
     }
 
-    // --- تكوين VLESS WS NoTLS (Port 81) ---
+    // --- تكوين JSON الذكي (يعالج الـ Host الفارغ) ---
     private fun createJsonConfig(): String {
         val address = etAddress.text.toString().trim()
         val port = etPort.text.toString().toIntOrNull() ?: 81
         val uuid = etUserId.text.toString().trim()
         val hostHeader = etSni.text.toString().trim()
         val path = etPath.text.toString().trim()
+
+        // إذا كان الهوست فارغاً، لا نرسل الهيدر أبداً (مثل DarkTunnel)
+        val wsSettings = if (hostHeader.isNotEmpty()) {
+            """
+            "wsSettings": {
+                "path": "$path",
+                "headers": { "Host": "$hostHeader" }
+            }
+            """
+        } else {
+            """
+            "wsSettings": {
+                "path": "$path"
+            }
+            """
+        }
 
         return """
         {
@@ -178,10 +182,7 @@ class MainActivity : Activity() {
                     "streamSettings": {
                         "network": "ws",
                         "security": "none",
-                        "wsSettings": {
-                            "path": "$path",
-                            "headers": { "Host": "$hostHeader" }
-                        }
+                        $wsSettings
                     },
                     "mux": { "enabled": false }
                 },
@@ -201,9 +202,8 @@ class MainActivity : Activity() {
     }
 
     private fun startVpn() {
-        // تنظيف الواجهة قبل البدء
         tvError.text = ""
-        tvStatus.text = "Initializing..."
+        tvStatus.text = "Starting..."
         progressBar.visibility = ProgressBar.VISIBLE
 
         val intent = VpnService.prepare(this)
@@ -224,26 +224,23 @@ class MainActivity : Activity() {
         }
     }
 
-    // --- المستقبل الذي يعرض الخطوات والأخطاء ---
     private val statusReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             when (intent?.action) {
                 "VPN_STATUS_UPDATE" -> {
                     val step = intent.getStringExtra("status_message")
                     tvStatus.text = step
-                    
-                    // تغيير لون النص حسب الحالة
                     if (step?.contains("Connected") == true) {
-                        tvStatus.setTextColor(Color.parseColor("#2E7D32")) // أخضر عند النجاح
+                        tvStatus.setTextColor(Color.parseColor("#2E7D32"))
                         progressBar.visibility = ProgressBar.INVISIBLE
                     } else {
-                        tvStatus.setTextColor(Color.parseColor("#1565C0")) // أزرق أثناء المحاولة
+                        tvStatus.setTextColor(Color.parseColor("#1565C0"))
                     }
                 }
                 "VPN_ERROR_REPORT" -> {
                     val error = intent.getStringExtra("error_message")
-                    tvError.text = "❌ Error: $error"
-                    tvStatus.text = "Connection Failed"
+                    tvError.text = "$error"
+                    tvStatus.text = "Failed"
                     tvStatus.setTextColor(Color.RED)
                     progressBar.visibility = ProgressBar.INVISIBLE
                 }
