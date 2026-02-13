@@ -8,6 +8,11 @@ import android.os.ParcelFileDescriptor
 import libv2ray.Libv2ray
 import libv2ray.CoreCallbackHandler
 import libv2ray.CoreController
+import java.net.HttpURLConnection
+import java.net.InetSocketAddress
+import java.net.Proxy
+import java.net.URL
+import java.util.concurrent.Executors
 
 class MyVpnService : VpnService() {
 
@@ -16,27 +21,27 @@ class MyVpnService : VpnService() {
         var coreController: CoreController? = null
     }
 
+    private val executor = Executors.newSingleThreadExecutor()
+    private val handler = Handler(Looper.getMainLooper())
+
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == "START_VPN") {
             val config = intent.getStringExtra("V2RAY_CONFIG")
             if (config != null) {
                 stopV2Ray()
-                Thread { startV2RaySequence(config) }.start()
+                // نبدأ العملية في مسار خلفي
+                executor.execute { startV2RayProcess(config) }
             }
         }
         return START_STICKY
     }
 
-    // دالة لتشغيل الخطوات بالتتابع (Simulation for User Experience)
-    private fun startV2RaySequence(config: String) {
-        val handler = Handler(Looper.getMainLooper())
-
+    private fun startV2RayProcess(config: String) {
         try {
-            // خطوة 1:
-            sendStatus("Connecting to server...")
-            Thread.sleep(500) // تأخير بسيط للجمالية
+            // 1. إظهار حالة البدء
+            updateStatus("Initializing Core...", false)
 
-            // خطوة 2: بناء الواجهة
+            // 2. إعداد واجهة الـ VPN
             val builder = Builder()
             builder.setSession("V2Ray Service")
             builder.addAddress("10.0.0.2", 24)
@@ -46,39 +51,62 @@ class MyVpnService : VpnService() {
             
             vpnInterface = builder.establish()
             if (vpnInterface == null) {
-                sendError("Failed to establish VPN Interface")
+                reportError("Failed to create VPN Interface")
                 return
             }
 
-            // خطوة 3:
-            sendStatus("Waiting for server to reply...")
-            Thread.sleep(800)
-
-            // خطوة 4: تشغيل المحرك
+            // 3. تشغيل المحرك (LibV2Ray)
             val callback = object : CoreCallbackHandler {
                 override fun onEmitStatus(p0: Long, p1: String?): Long { return 0 }
                 override fun shutdown(): Long { return 0 }
                 override fun startup(): Long { return 0 }
             }
-
             coreController = Libv2ray.newCoreController(callback)
-            
-            // خطوة 5:
-            sendStatus("Authenticating...")
-            // نحاول تشغيل المحرك فعلياً
             coreController?.startLoop(config, vpnInterface!!.fd)
+
+            // 4. مرحلة التحقق الحقيقي (The Real Test)
+            updateStatus("Authenticating with Server...", false)
             
-            // إذا وصلنا هنا بدون استثناء، نعتبره متصلاً مبدئياً
-            // ملاحظة: V2Ray لا يعطي callback مباشر عند نجاح الاتصال بالسيرفر البعيد،
-            // لكن سنفترض النجاح إذا لم يظهر خطأ خلال ثانية.
-            handler.postDelayed({
-                sendStatus("Connected ✅")
-            }, 1000)
+            // ننتظر قليلاً ليعمل المحرك
+            Thread.sleep(1000) 
+            
+            // نفحص الاتصال الحقيقي
+            if (checkRealConnection()) {
+                updateStatus("Connected ✅", true)
+            } else {
+                reportError("Handshake Failed! Check IP/UUID")
+                stopV2Ray()
+            }
 
         } catch (e: Exception) {
             e.printStackTrace()
-            sendError(e.message ?: "Unknown Error")
+            reportError("Error: ${e.message}")
             stopV2Ray()
+        }
+    }
+
+    // --- دالة الفحص الحقيقي (السر هنا) ---
+    private fun checkRealConnection(): Boolean {
+        updateStatus("Waiting for reply...", false)
+        try {
+            // نحاول الاتصال بجوجل عبر البروكسي المحلي (10808) الذي أنشأه V2Ray
+            // إذا كان إعداد السيرفر خطأ، هذا الاتصال سيفشل فوراً
+            val proxy = Proxy(Proxy.Type.SOCKS, InetSocketAddress("127.0.0.1", 10808))
+            val url = URL("https://www.google.com")
+            val connection = url.openConnection(proxy) as HttpURLConnection
+            
+            connection.connectTimeout = 5000 // مهلة 5 ثواني
+            connection.readTimeout = 5000
+            connection.requestMethod = "HEAD" // طلب خفيف
+
+            val code = connection.responseCode
+            connection.disconnect()
+
+            // إذا رجع كود 200 (OK) أو أي رد حقيقي، فالاتصال ناجح
+            return code > 0
+        } catch (e: Exception) {
+            // فشل الاتصال يعني أن السيرفر لا يرد أو الإعدادات خاطئة
+            return false
         }
     }
 
@@ -89,16 +117,15 @@ class MyVpnService : VpnService() {
         } catch (e: Exception) { }
     }
     
-    // إرسال تحديث الحالة (الخطوات)
-    private fun sendStatus(msg: String) {
+    // دوال مساعدة لإرسال التحديثات للواجهة
+    private fun updateStatus(msg: String, isSuccess: Boolean) {
         val intent = Intent("VPN_STATUS_UPDATE")
         intent.putExtra("status_message", msg)
         intent.setPackage(packageName)
         sendBroadcast(intent)
     }
 
-    // إرسال تقرير الخطأ
-    private fun sendError(error: String) {
+    private fun reportError(error: String) {
         val intent = Intent("VPN_ERROR_REPORT")
         intent.putExtra("error_message", error)
         intent.setPackage(packageName)
@@ -108,5 +135,6 @@ class MyVpnService : VpnService() {
     override fun onDestroy() {
         super.onDestroy()
         stopV2Ray()
+        executor.shutdownNow()
     }
 }
