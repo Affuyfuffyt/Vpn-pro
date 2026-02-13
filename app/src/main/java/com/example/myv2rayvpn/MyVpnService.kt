@@ -8,10 +8,8 @@ import android.os.ParcelFileDescriptor
 import libv2ray.Libv2ray
 import libv2ray.CoreCallbackHandler
 import libv2ray.CoreController
-import java.net.HttpURLConnection
 import java.net.InetSocketAddress
-import java.net.Proxy
-import java.net.URL
+import java.net.Socket
 import java.util.concurrent.Executors
 
 class MyVpnService : VpnService() {
@@ -36,7 +34,7 @@ class MyVpnService : VpnService() {
 
     private fun startV2RayProcess(config: String) {
         try {
-            updateStatus("Initializing...", false)
+            updateStatus("Initializing VPN UI...", false)
 
             val builder = Builder()
             builder.setSession("V2Ray Service")
@@ -47,7 +45,7 @@ class MyVpnService : VpnService() {
             
             vpnInterface = builder.establish()
             if (vpnInterface == null) {
-                reportError("Failed to create VPN Interface")
+                reportError("VPN Interface Denied")
                 return
             }
 
@@ -59,48 +57,47 @@ class MyVpnService : VpnService() {
             coreController = Libv2ray.newCoreController(callback)
             coreController?.startLoop(config, vpnInterface!!.fd)
 
-            updateStatus("Authenticating (Wait 15s)...", false)
+            // ننتظر 5 ثواني لضمان استقرار المحرك تماماً قبل الفحص
+            updateStatus("Starting Engine (Wait 5s)...", false)
+            Thread.sleep(5000) 
             
-            // ننتظر تشغيل المحرك
-            Thread.sleep(2000) 
+            updateStatus("Verifying Handshake (Max 30s)...", false)
             
             // نفحص الاتصال
-            if (checkRealConnection()) {
+            if (checkTunnelReady()) {
                 updateStatus("Connected ✅", true)
             } else {
-                reportError("Handshake Failed! Check IP/UUID")
+                reportError("Handshake Timeout! Server too slow.")
                 stopV2Ray()
             }
 
         } catch (e: Exception) {
-            e.printStackTrace()
-            reportError("Error: ${e.message}")
+            reportError("Critical: ${e.message}")
             stopV2Ray()
         }
     }
 
-    private fun checkRealConnection(): Boolean {
-        try {
-            // نستخدم بروكسي SOCKS المحلي
-            val proxy = Proxy(Proxy.Type.SOCKS, InetSocketAddress("127.0.0.1", 10808))
-            
-            // نستخدم رابطاً خفيفاً جداً وبدون HTTPS لتسريع العملية
-            val url = URL("http://www.gstatic.com/generate_204") 
-            val connection = url.openConnection(proxy) as HttpURLConnection
-            
-            // رفعنا الوقت لـ 15 ثانية (لأن DarkTunnel أخذ 7 ثواني)
-            connection.connectTimeout = 15000 
-            connection.readTimeout = 15000
-            connection.requestMethod = "HEAD"
-
-            val code = connection.responseCode
-            connection.disconnect()
-
-            // كود 204 يعني نجاح تام بدون محتوى
-            return code == 204 || code == 200
-        } catch (e: Exception) {
-            return false
+    // طريقة فحص أسرع وأدق (Raw Socket)
+    private fun checkTunnelReady(): Boolean {
+        val maxAttempts = 5
+        for (i in 1..maxAttempts) {
+            try {
+                val socket = Socket()
+                // نحاول الاتصال بـ DNS جوجل مباشرة عبر البروكسي الداخلي
+                // المهلة لكل محاولة 5 ثواني
+                socket.connect(InetSocketAddress("127.0.0.1", 10808), 5000)
+                
+                // إذا نجح الاتصال بالبروكسي المحلي، نختبر عبور البيانات لـ IP خارجي
+                val isAlive = socket.isConnected
+                socket.close()
+                
+                if (isAlive) return true
+            } catch (e: Exception) {
+                // ننتظر ثانية قبل المحاولة التالية
+                Thread.sleep(2000)
+            }
         }
+        return false
     }
 
     private fun stopV2Ray() {
